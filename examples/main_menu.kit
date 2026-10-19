@@ -1,0 +1,29 @@
+[create gui.menu="MainMenu"]
+MainMenu.title/"Kitlean Demo"
+[create gui.menu="Settings"]
+Settings.title/"Ustawienia"
+[create item.label="settingsTitle"]
+settingsTitle.text/"Ustawienia aplikacji"
+[create item.button="back"]
+back.text/"POWRÓT"
+if back.clicked:
+    open.gui.menu("MainMenu")
+[create item.label="title"]
+title.parent/"MainMenu"
+title.text/"Witaj w Kitlean!"
+[create item.button="start"]
+start.parent/"MainMenu"
+start.text/"START"
+[create item.button="settings"]
+settings.parent/"MainMenu"
+settings.text/"USTAWIENIA"
+[create item.button="exit"]
+exit.parent/"MainMenu"
+create item.button/"WYJDŹ"
+if start.clicked:
+    print("Uruchomiono!")
+if settings.clicked:
+    open.gui.menu("Settings")
+if exit.clicked:
+    close.app
+run gui.menu="MainMenu"
