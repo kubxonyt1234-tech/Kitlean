@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kitlean"
-version = "0.1.0b1"
-description = "Kitlean 0.1 Beta — prosty język z GUI tkinter"
+version = "0.2.0b1"
+description = "Kitlean 0.2 Beta — prosty język z GUI tkinter"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}

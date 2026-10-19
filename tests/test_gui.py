@@ -127,3 +127,70 @@ def test_callback_error_is_language_error(interpreter):
     i.runtime.windows.root.after(100, lambda: i.runtime.get("b").widget.invoke())
     with pytest.raises(KitleanError):
         i.runtime.windows.run("m")
+
+
+def test_v02_clicker_real_mainloop(interpreter):
+    i = interpreter
+    source = (Path(__file__).parents[1] / "examples/clicker.kit").read_text(
+        encoding="utf-8-sig"
+    )
+    observations = []
+
+    def interact():
+        r = i.runtime
+        root = r.windows.root
+        button = r.get("click").widget
+        counter = r.get("counter").widget
+        assert counter["text"] == "Punkty: 0"
+        assert root.winfo_width() == 800
+        assert root.winfo_height() == 500
+        assert (button.winfo_width(), button.winfo_height()) == (160, 45)
+        assert button.winfo_y() >= counter.winfo_y() + counter.winfo_height() + 12
+        original_build = r.windows.build
+
+        def unexpected_build():
+            raise AssertionError("Odświeżanie licznika nie może przebudowywać GUI")
+
+        r.windows.build = unexpected_build
+        for points in range(1, 101):
+            button.invoke()
+            assert i.env.get("points") == points
+            assert counter["text"] == f"Punkty: {points}"
+            assert r.windows.root is root
+            assert r.get("click").widget is button
+            assert r.get("counter").widget is counter
+        r.windows.build = original_build
+        i.execute(
+            '[create gui/menu="settings"]\nopen settings\nopen game\nopen settings\nopen game'
+        )
+        button.invoke()
+        observations.append((i.env.get("points"), counter["text"]))
+        assert len(r.events.handlers[("click", "clicked")]) == 1
+        r.windows.close()
+
+    i.runtime.windows.root.after(150, interact)
+    i.runtime.windows.root.after(10000, i.runtime.windows.close)
+    i.execute(source)
+    assert observations == [(101, "Punkty: 101")]
+
+
+def test_v02_clicker_cli_run(interpreter, monkeypatch):
+    from kitlean import cli
+
+    i = interpreter
+    observed = []
+
+    def interact():
+        r = i.runtime
+        for _ in range(10):
+            r.get("click").widget.invoke()
+        observed.append(r.get("counter").widget["text"])
+        r.windows.close()
+
+    i.runtime.windows.root.after(150, interact)
+    i.runtime.windows.root.after(10000, i.runtime.windows.close)
+    # Dostarczamy tylko timer do prawdziwego interpretera; okna i widgety są rzeczywiste.
+    monkeypatch.setattr(cli, "Interpreter", lambda: i)
+    path = Path(__file__).parents[1] / "examples/clicker.kit"
+    assert cli.main(["run", str(path)]) == 0
+    assert observed == ["Punkty: 10"]

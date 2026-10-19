@@ -12,6 +12,8 @@ class Runtime:
         self.events = Events()
         self.windows = Windows(self)
         self.line = 1
+        self.bindings = {}
+        self.dependencies = {}
 
     def get(self, name):
         if name not in self.objects:
@@ -51,6 +53,8 @@ class Runtime:
             e.parent = self.context
         self.objects[name] = e
         self.last[(self.context, kind)] = name
+        if self.windows.root is not None:
+            self.windows.build()
         return e
 
     def read(self, name, prop):
@@ -72,7 +76,56 @@ class Runtime:
         if prop not in allowed:
             raise KitleanError("Nieznana właściwość: " + prop, self.line)
 
-    def set(self, name, prop, value):
+    def render_template(self, template, env, line, owners=None):
+        result = []
+        for variable, value in template.parts:
+            if variable:
+                try:
+                    value = (owners[value] if owners is not None else env).get(value)
+                except KeyError:
+                    raise KitleanError(
+                        "Nieistniejąca zmienna w interpolacji: " + value, line
+                    ) from None
+                if value is True:
+                    value = "true"
+                elif value is False:
+                    value = "false"
+                elif value is None:
+                    value = "null"
+                else:
+                    value = str(value)
+            result.append(value)
+        return "".join(result)
+
+    def unbind(self, key):
+        previous = self.bindings.pop(key, None)
+        if previous:
+            for dependency in previous[3]:
+                keys = self.dependencies.get(dependency)
+                if keys is not None:
+                    keys.discard(key)
+                    if not keys:
+                        self.dependencies.pop(dependency)
+
+    def bind_text(self, name, prop, template, env, line):
+        value = self.render_template(template, env, line)
+        dependencies = {
+            (env.resolve(variable), variable) for variable in template.dependencies
+        }
+        self.set(name, prop, value)
+        key = (name, prop)
+        self.bindings[key] = (template, env, line, dependencies)
+        for dependency in dependencies:
+            self.dependencies.setdefault(dependency, set()).add(key)
+
+    def variable_changed(self, owner, name):
+        for key in tuple(self.dependencies.get((owner, name), ())):
+            template, env, line, dependencies = self.bindings[key]
+            owners = {variable: scope for scope, variable in dependencies}
+            value = self.render_template(template, env, line, owners)
+            self.set(*key, value, keep_binding=True)
+
+    def set(self, name, prop, value, keep_binding=False):
         e = self.get(name)
         self.validate_property(e, prop)
         if prop in (
@@ -103,6 +156,8 @@ class Runtime:
             else not isinstance(value, str)
         ):
             raise KitleanError("Niepoprawny typ value", self.line)
+        if not keep_binding:
+            self.unbind((name, prop))
         if prop == "parent":
             parent = self.get(value)
             if parent.kind != "gui.menu":
@@ -119,4 +174,7 @@ class Runtime:
             if prop == "value" and e.variable is not None:
                 e.variable.set(value)
         if self.windows.root is not None:
-            self.windows.build()
+            if prop in ("text", "title", "value"):
+                self.windows.update_text(e, prop)
+            else:
+                self.windows.build()

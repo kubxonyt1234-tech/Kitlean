@@ -1,8 +1,14 @@
 class Events:
     def __init__(self):
         self.handlers = {}
+        self.registered = set()
 
-    def register(self, name, event, callback):
+    def register(self, name, event, callback, key=None):
+        identity = (name, event, key)
+        if key is not None:
+            if identity in self.registered:
+                return
+            self.registered.add(identity)
         self.handlers.setdefault((name, event), []).append(callback)
 
     def emit(self, element, event):

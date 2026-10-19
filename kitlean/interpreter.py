@@ -2,6 +2,7 @@ import ast
 import operator
 from dataclasses import dataclass
 
+from .ast_nodes import Template
 from .errors import KitleanError
 from .parser import Parser
 from .runtime import Runtime
@@ -18,6 +19,13 @@ class Environment:
     def __init__(self, parent=None):
         self.values = {}
         self.parent = parent
+
+    def resolve(self, name):
+        if name in self.values:
+            return self
+        if self.parent:
+            return self.parent.resolve(name)
+        raise KeyError(name)
 
     def get(self, name):
         if name in self.values:
@@ -67,7 +75,14 @@ class Interpreter:
 
         a = n.args
         if n.kind == "create":
-            name = ev(a[1])
+            if a[1] is None:
+                number = len(rt.objects) + 1
+                name = f"_anon_{number}"
+                while name in rt.objects or name in env.values:
+                    number += 1
+                    name = f"_anon_{number}"
+            else:
+                name = ev(a[1])
             try:
                 env.get(name)
             except (KeyError, TypeError):
@@ -75,15 +90,19 @@ class Interpreter:
             else:
                 raise KitleanError("Nazwa zajęta przez zmienną lub funkcję", n.line)
             rt.create(a[0], name)
+        elif n.kind == "create_text":
+            self.statement(type(n)("create", n.line, (a[0], None)), env)
+            name = rt.last[(rt.context, a[0])]
+            self.set_property(name, "text", a[1], env)
         elif n.kind == "property":
-            rt.set(a[0], a[1], ev(a[2]))
+            self.set_property(a[0], a[1], a[2], env)
         elif n.kind == "last_text":
             name = rt.last.get((rt.context, a[0]))
             if name is None:
                 raise KitleanError(
                     "Brak ostatniego elementu w bieżącym kontekście", n.line
                 )
-            rt.set(name, "text", ev(a[1]))
+            self.set_property(name, "text", a[1], env)
         elif n.kind == "assign":
             if (
                 a[0] in rt.objects
@@ -91,7 +110,15 @@ class Interpreter:
                 or a[0] in self.builtins
             ):
                 raise KitleanError("Nazwa zastrzeżona lub zajęta", n.line)
-            env.values[a[0]] = ev(a[1])
+            value = ev(a[1])
+            owner = env
+            if not a[2]:
+                try:
+                    owner = env.resolve(a[0])
+                except KeyError:
+                    pass
+            owner.values[a[0]] = value
+            rt.variable_changed(owner, a[0])
         elif n.kind == "function":
             if (
                 a[0] in rt.objects
@@ -119,14 +146,33 @@ class Interpreter:
                 if n.otherwise:
                     raise KitleanError("Zdarzenia nie obsługują else", n.line)
                 rt.events.register(
-                    element.name, tree.attr, lambda: self.block(n.body, env)
+                    element.name,
+                    tree.attr,
+                    lambda: self.block(n.body, env),
+                    key=(id(n), id(env)),
                 )
             else:
                 self.block(n.body if ev(a[0]) else n.otherwise, env)
         elif n.kind == "run":
             rt.windows.run(ev(a[0]))
+        elif n.kind == "run_context":
+            if rt.context is None:
+                raise KitleanError("Najpierw utwórz menu", n.line)
+            rt.windows.run(rt.context)
+        elif n.kind == "open":
+            rt.windows.open(ev(a[0]))
+        elif n.kind == "close":
+            rt.windows.hide(ev(a[0]))
         elif n.kind == "close_app":
             rt.windows.close()
+
+    def set_property(self, name, prop, expression, env):
+        if isinstance(expression.tree, Template) and prop in ("text", "title", "value"):
+            self.runtime.bind_text(name, prop, expression.tree, env, expression.line)
+        else:
+            self.runtime.set(
+                name, prop, self.evaluate(expression.tree, env, expression.line)
+            )
 
     def evaluate(self, n, env, line):
         self.runtime.line = line
@@ -134,6 +180,8 @@ class Interpreter:
         def ev(x):
             return self.evaluate(x, env, line)
 
+        if isinstance(n, Template):
+            return self.runtime.render_template(n, env, line)
         if isinstance(n, ast.Constant):
             if type(n.value) not in (str, int, float, bool, type(None)):
                 raise KitleanError("Niedozwolony literał", line)

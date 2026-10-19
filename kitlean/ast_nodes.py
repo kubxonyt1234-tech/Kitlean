@@ -15,3 +15,17 @@ class Statement:
 class Expression:
     tree: ast.AST
     line: int
+
+
+class Template(ast.expr):
+    """Literalne fragmenty tekstu i nazwy zmiennych; bez wykonywalnego kodu."""
+
+    _fields = ()
+
+    def __init__(self, parts, line):
+        self.parts = parts
+        self.line = line
+
+    @property
+    def dependencies(self):
+        return {value for variable, value in self.parts if variable}

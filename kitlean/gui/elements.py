@@ -21,7 +21,7 @@ class Element:
     def __post_init__(self):
         self.properties.update(
             text="",
-            title=self.name,
+            title="Kitlean",
             background="#FFFFFF" if self.kind == "gui.menu" else "#F0F0F0",
             color="#202020",
             visible=True,

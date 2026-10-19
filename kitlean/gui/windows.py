@@ -76,6 +76,38 @@ class Windows:
                 )
         self.refresh()
 
+    def update_text(self, element, prop):
+        """Odświeża istniejący widget; nie tworzy okien ani nowych callbacków."""
+        if element.kind == "gui.menu":
+            if self.active == element.name and prop == "title":
+                self.root.title(element.properties["title"])
+        elif element.widget is not None:
+            if prop == "text" and element.kind != "item.input":
+                element.widget.configure(text=element.properties["text"])
+            self.layout_menu(element.parent)
+
+    def layout_menu(self, name):
+        if self.root is None:
+            return
+        self.root.update_idletasks()
+        children = [
+            e
+            for e in self.runtime.objects.values()
+            if e.parent == name and e.widget is not None
+        ]
+        positions = arrange(children)
+        for e in children:
+            if e.name not in positions:
+                e.widget.place_forget()
+                continue
+            x, y = positions[e.name]
+            kwargs = {"x": x, "y": y}
+            if e.properties["size"]:
+                kwargs.update(
+                    zip(("width", "height"), e.properties["size"], strict=True)
+                )
+            e.widget.place(**kwargs)
+
     def refresh(self):
         if self.root is None:
             return
@@ -94,7 +126,9 @@ class Windows:
                     if e.kind != "item.input":
                         e.widget.configure(text=p["text"])
             except tk.TclError as exc:
-                raise KitleanError("Niepoprawna właściwość GUI: " + str(exc)) from None
+                raise KitleanError(
+                    "Niepoprawna właściwość GUI: " + str(exc), self.runtime.line
+                ) from None
         self.root.update_idletasks()
         for menu in self.runtime.objects.values():
             if menu.kind != "gui.menu":
@@ -121,7 +155,7 @@ class Windows:
     def open(self, name):
         menu = self.runtime.get(name)
         if menu.kind != "gui.menu":
-            raise KitleanError("Oczekiwano gui.menu")
+            raise KitleanError("Oczekiwano gui.menu", self.runtime.line)
         self.build()
         for e in self.runtime.objects.values():
             if e.kind == "gui.menu":
@@ -134,14 +168,15 @@ class Windows:
     def hide(self, name):
         menu = self.runtime.get(name)
         if menu.kind != "gui.menu":
-            raise KitleanError("Oczekiwano gui.menu")
+            raise KitleanError("Oczekiwano gui.menu", self.runtime.line)
         if self.active == name:
             self.root.withdraw()
             self.active = None
 
     def run(self, name):
         if self.running:
-            raise KitleanError("Pętla GUI jest już uruchomiona")
+            raise KitleanError("Pętla GUI jest już uruchomiona", self.runtime.line)
+        self.error = None
         self.open(name)
         self.running = True
         try:
