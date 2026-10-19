@@ -4,6 +4,10 @@ class KitleanError(Exception):
         super().__init__(message)
 
     def __str__(self):
-        return f"KitleanError [Line {self.line}]\n{self.message}" + (
+        return f"{type(self).__name__} [Line {self.line}]\n{self.message}" + (
             f"\n\nHint: {self.hint}" if self.hint else ""
         )
+
+
+class KitleanMathError(KitleanError):
+    pass

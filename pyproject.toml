@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kitlean"
-version = "0.2.0b1"
-description = "Kitlean 0.2 Beta — prosty język z GUI tkinter"
+version = "0.3.0b1"
+description = "Kitlean 0.3 Beta — prosty język z GUI tkinter"
 readme = "README.md"
 requires-python = ">=3.12"
+dependencies = ["pygame>=2.6,<3", "Pillow>=10,<14"]
 license = {text = "MIT"}
 authors = [{name = "Kitlean contributors"}]
 
@@ -22,7 +23,7 @@ include = ["kitlean*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["gui: testy wymagające rzeczywistego tkinter i pulpitu"]
+markers = ["gui: testy wymagające rzeczywistego tkinter i pulpitu", "audio: rzeczywisty mikser SDL i dekodery audio"]
 
 [tool.ruff]
 target-version = "py312"

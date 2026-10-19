@@ -6,6 +6,9 @@ DEFAULTS = {
     "item.input": (240, 40),
     "item.label": None,
     "item.checkbox": None,
+    "item.image": None,
+    "audio.music": None,
+    "timer": None,
 }
 
 
@@ -20,6 +23,10 @@ class Element:
 
     def __post_init__(self):
         self.properties.update(
+            file="",
+            volume=50,
+            loop=False,
+            interval=1,
             text="",
             title="Kitlean",
             background="#FFFFFF" if self.kind == "gui.menu" else "#F0F0F0",

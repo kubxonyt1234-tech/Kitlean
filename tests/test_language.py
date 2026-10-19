@@ -121,7 +121,7 @@ def test_error_line():
 @pytest.mark.parametrize(
     "args,code,expected",
     [
-        (["--version"], 0, "Kitlean 0.2 Beta"),
+        (["--version"], 0, "Kitlean 0.3 Beta"),
         (["help"], 0, "usage:"),
         (["check", "examples/main_menu.kit"], 0, "Składnia poprawna"),
         (["run", "examples/hello.kit"], 0, "Hello Kitlean!"),

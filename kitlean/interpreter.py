@@ -3,9 +3,12 @@ import operator
 from dataclasses import dataclass
 
 from .ast_nodes import Template
-from .errors import KitleanError
+from .errors import KitleanError, KitleanMathError
+from .expressions import MathCall
+from .mathematics import calculate
 from .parser import Parser
 from .runtime import Runtime
+from .scheduler import Delay, GuiWait
 
 
 @dataclass
@@ -44,20 +47,28 @@ class Interpreter:
         self.builtins = {"print": output, "len": len, "str": str, "number": float}
 
     def execute(self, source):
-        self.block(Parser(source).parse(), self.env)
+        self.runtime.closed = False
+        self.runtime.scheduler.submit(self.block(Parser(source).parse(), self.env))
+        if not self.runtime.windows.running and (
+            self.runtime.scheduler.want_loop or self.runtime.scheduler.jobs
+        ):
+            self.runtime.windows.loop()
         return self.runtime
 
-    def block(self, nodes, env):
+    async def block(self, nodes, env):
         for node in nodes:
+            if self.runtime.closed:
+                return
             self.runtime.line = node.line
             try:
-                self.statement(node, env)
+                await self.statement(node, env)
+            except ZeroDivisionError:
+                raise KitleanMathError("Dzielenie przez zero", node.line) from None
             except KitleanError:
                 raise
             except (
                 TypeError,
                 ValueError,
-                ZeroDivisionError,
                 IndexError,
                 KeyError,
                 OverflowError,
@@ -67,11 +78,11 @@ class Interpreter:
                     "Niepoprawny typ, wartość lub argument: " + str(e), node.line
                 ) from None
 
-    def statement(self, n, env):
+    async def statement(self, n, env):
         rt = self.runtime
 
-        def ev(e):
-            return self.evaluate(e.tree, env, e.line)
+        async def ev(e):
+            return await self.evaluate(e.tree, env, e.line)
 
         a = n.args
         if n.kind == "create":
@@ -82,7 +93,7 @@ class Interpreter:
                     number += 1
                     name = f"_anon_{number}"
             else:
-                name = ev(a[1])
+                name = await ev(a[1])
             try:
                 env.get(name)
             except (KeyError, TypeError):
@@ -91,18 +102,18 @@ class Interpreter:
                 raise KitleanError("Nazwa zajęta przez zmienną lub funkcję", n.line)
             rt.create(a[0], name)
         elif n.kind == "create_text":
-            self.statement(type(n)("create", n.line, (a[0], None)), env)
+            await self.statement(type(n)("create", n.line, (a[0], None)), env)
             name = rt.last[(rt.context, a[0])]
-            self.set_property(name, "text", a[1], env)
+            await self.set_property(name, "text", a[1], env)
         elif n.kind == "property":
-            self.set_property(a[0], a[1], a[2], env)
+            await self.set_property(a[0], a[1], a[2], env)
         elif n.kind == "last_text":
             name = rt.last.get((rt.context, a[0]))
             if name is None:
                 raise KitleanError(
                     "Brak ostatniego elementu w bieżącym kontekście", n.line
                 )
-            self.set_property(name, "text", a[1], env)
+            await self.set_property(name, "text", a[1], env)
         elif n.kind == "assign":
             if (
                 a[0] in rt.objects
@@ -110,7 +121,7 @@ class Interpreter:
                 or a[0] in self.builtins
             ):
                 raise KitleanError("Nazwa zastrzeżona lub zajęta", n.line)
-            value = ev(a[1])
+            value = await ev(a[1])
             owner = env
             if not a[2]:
                 try:
@@ -119,6 +130,60 @@ class Interpreter:
                     pass
             owner.values[a[0]] = value
             rt.variable_changed(owner, a[0])
+        elif n.kind == "augment":
+            try:
+                owner = env.resolve(a[0])
+            except KeyError:
+                raise KitleanError("Nieznana zmienna: " + a[0], n.line) from None
+            left = owner.get(a[0])
+            right = await ev(a[2])
+            if type(left) not in (int, float) or type(right) not in (int, float):
+                raise KitleanMathError("Operator skrócony wymaga liczb", n.line)
+            owner.values[a[0]] = {
+                "+=": operator.add,
+                "-=": operator.sub,
+                "*=": operator.mul,
+                ":=": operator.truediv,
+            }[a[1]](left, right)
+            rt.variable_changed(owner, a[0])
+        elif n.kind in ("save", "load"):
+            try:
+                owner = env.resolve(a[0])
+            except KeyError:
+                raise KitleanError("Nieznana zmienna: " + a[0], n.line) from None
+            if n.kind == "save":
+                rt.storage.save(a[0], owner.get(a[0]), n.line)
+            else:
+                owner.values[a[0]] = rt.storage.load(a[0], owner.get(a[0]), n.line)
+                rt.variable_changed(owner, a[0])
+        elif n.kind in ("play", "pause", "resume", "stop", "start"):
+            element = rt.get(a[0])
+            if element.kind == "timer" and n.kind in ("start", "stop"):
+                (rt.start_timer if n.kind == "start" else rt.stop_timer)(element)
+            elif element.kind == "audio.music" and n.kind in (
+                "play",
+                "pause",
+                "resume",
+                "stop",
+            ):
+                rt.audio.command(
+                    n.kind, element, rt.asset_path(element.properties["file"]), n.line
+                )
+            else:
+                raise KitleanError("Niepoprawny typ obiektu dla " + n.kind, n.line)
+        elif n.kind == "wait":
+            seconds = rt.scheduler.seconds(await ev(a[0]), n.line)
+            await Delay(seconds)
+        elif n.kind == "key_event":
+            if n.otherwise:
+                raise KitleanError("Zdarzenia nie obsługują else", n.line)
+            key = rt.keyboard.canonical(a[0], n.line)
+            rt.events.register(
+                "key",
+                key,
+                lambda: rt.scheduler.submit(self.block(n.body, env)),
+                key=(id(n), id(env)),
+            )
         elif n.kind == "function":
             if (
                 a[0] in rt.objects
@@ -128,58 +193,73 @@ class Interpreter:
                 raise KitleanError("Nazwa zastrzeżona lub zajęta", n.line)
             env.values[a[0]] = Function(a[1], n.body, env)
         elif n.kind == "expression":
-            ev(a[0])
+            await ev(a[0])
         elif n.kind == "repeat":
-            count = ev(a[0])
+            count = await ev(a[0])
             if type(count) is not int or count < 0:
                 raise KitleanError("repeat wymaga nieujemnej liczby całkowitej", n.line)
             for _ in range(count):
-                self.block(n.body, env)
+                await self.block(n.body, env)
         elif n.kind == "if":
             tree = a[0].tree
-            if isinstance(tree, ast.Attribute) and tree.attr in ("clicked", "hovered"):
+            if isinstance(tree, ast.Attribute) and tree.attr in (
+                "clicked",
+                "hovered",
+                "tick",
+            ):
                 if not isinstance(tree.value, ast.Name):
                     raise KitleanError("Zdarzenie wymaga nazwy obiektu", n.line)
                 element = rt.get(tree.value.id)
-                if element.kind == "gui.menu":
+                if (
+                    tree.attr == "tick"
+                    and element.kind != "timer"
+                    or tree.attr != "tick"
+                    and not element.kind.startswith("item.")
+                ):
                     raise KitleanError("Zdarzenie wymaga elementu item", n.line)
                 if n.otherwise:
                     raise KitleanError("Zdarzenia nie obsługują else", n.line)
                 rt.events.register(
                     element.name,
                     tree.attr,
-                    lambda: self.block(n.body, env),
+                    lambda: rt.scheduler.submit(self.block(n.body, env)),
                     key=(id(n), id(env)),
                 )
             else:
-                self.block(n.body if ev(a[0]) else n.otherwise, env)
+                await self.block(n.body if await ev(a[0]) else n.otherwise, env)
         elif n.kind == "run":
-            rt.windows.run(ev(a[0]))
+            rt.windows.open(await ev(a[0]))
+            rt.scheduler.want_loop = True
+            await GuiWait()
         elif n.kind == "run_context":
             if rt.context is None:
                 raise KitleanError("Najpierw utwórz menu", n.line)
-            rt.windows.run(rt.context)
+            rt.windows.open(rt.context)
+            rt.scheduler.want_loop = True
+            await GuiWait()
         elif n.kind == "open":
-            rt.windows.open(ev(a[0]))
+            rt.windows.open(await ev(a[0]))
         elif n.kind == "close":
-            rt.windows.hide(ev(a[0]))
+            rt.windows.hide(await ev(a[0]))
         elif n.kind == "close_app":
             rt.windows.close()
 
-    def set_property(self, name, prop, expression, env):
+    async def set_property(self, name, prop, expression, env):
         if isinstance(expression.tree, Template) and prop in ("text", "title", "value"):
             self.runtime.bind_text(name, prop, expression.tree, env, expression.line)
         else:
             self.runtime.set(
-                name, prop, self.evaluate(expression.tree, env, expression.line)
+                name, prop, await self.evaluate(expression.tree, env, expression.line)
             )
 
-    def evaluate(self, n, env, line):
+    async def evaluate(self, n, env, line):
         self.runtime.line = line
 
-        def ev(x):
-            return self.evaluate(x, env, line)
+        async def ev(x):
+            return await self.evaluate(x, env, line)
 
+        if isinstance(n, MathCall):
+            return calculate(n.name, [await ev(x) for x in n.args], line)
         if isinstance(n, Template):
             return self.runtime.render_template(n, env, line)
         if isinstance(n, ast.Constant):
@@ -194,7 +274,7 @@ class Interpreter:
             except KeyError:
                 raise KitleanError("Nieznany identyfikator: " + n.id, line) from None
         if isinstance(n, (ast.List, ast.Tuple)):
-            values = [ev(x) for x in n.elts]
+            values = [await ev(x) for x in n.elts]
             return tuple(values) if isinstance(n, ast.Tuple) else values
         if isinstance(n, ast.Attribute):
             if not isinstance(n.value, ast.Name):
@@ -210,15 +290,15 @@ class Interpreter:
                 ast.Mod: operator.mod,
                 ast.Pow: operator.pow,
             }
-            return ops[type(n.op)](ev(n.left), ev(n.right))
+            return ops[type(n.op)](await ev(n.left), await ev(n.right))
         if isinstance(n, ast.UnaryOp):
             return {
                 ast.USub: operator.neg,
                 ast.UAdd: operator.pos,
                 ast.Not: operator.not_,
-            }[type(n.op)](ev(n.operand))
+            }[type(n.op)](await ev(n.operand))
         if isinstance(n, ast.BoolOp):
-            value = ev(n.values[0])
+            value = await ev(n.values[0])
             for item in n.values[1:]:
                 if (
                     isinstance(n.op, ast.And)
@@ -227,7 +307,7 @@ class Interpreter:
                     and value
                 ):
                     return value
-                value = ev(item)
+                value = await ev(item)
             return value
         if isinstance(n, ast.Compare):
             ops = {
@@ -240,17 +320,17 @@ class Interpreter:
                 ast.In: lambda a, b: a in b,
                 ast.NotIn: lambda a, b: a not in b,
             }
-            left = ev(n.left)
+            left = await ev(n.left)
             for op, right in zip(n.ops, n.comparators, strict=True):
-                right = ev(right)
+                right = await ev(right)
                 if not ops[type(op)](left, right):
                     return False
                 left = right
             return True
         if isinstance(n, ast.Subscript):
-            return ev(n.value)[ev(n.slice)]
+            return (await ev(n.value))[await ev(n.slice)]
         if isinstance(n, ast.Call):
-            args = [ev(x) for x in n.args]
+            args = [await ev(x) for x in n.args]
             if isinstance(n.func, ast.Attribute):
                 f = n.func
                 if (
@@ -272,7 +352,7 @@ class Interpreter:
                 raise KitleanError("Niedozwolone wywołanie", line)
             if n.func.id in self.builtins:
                 return self.builtins[n.func.id](*args)
-            function = ev(n.func)
+            function = await ev(n.func)
             if not isinstance(function, Function):
                 raise KitleanError("Obiekt nie jest funkcją", line)
             if len(args) != len(function.params):
@@ -283,7 +363,7 @@ class Interpreter:
             local.values.update(zip(function.params, args, strict=True))
             self.depth += 1
             try:
-                self.block(function.body, local)
+                await self.block(function.body, local)
             finally:
                 self.depth -= 1
             return None

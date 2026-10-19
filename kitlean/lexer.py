@@ -23,7 +23,7 @@ class Lexer:
         self.source = source
         self.templates = {}
 
-    def scan_template(self, start, line):
+    def scan_template(self, start, line, path_mode=False):
         parts, literal = [], []
         i = start + 1
         escapes = {
@@ -41,6 +41,14 @@ class Lexer:
                 break
             if ch == "\\":
                 i += 1
+                if (
+                    path_mode
+                    and i < len(self.source)
+                    and self.source[i] not in ("$", "{", "}", "\\")
+                ):
+                    literal.extend(("\\", self.source[i]))
+                    i += 1
+                    continue
                 if i >= len(self.source) or self.source[i] not in escapes:
                     raise KitleanError("Niepoprawna sekwencja ucieczki w tekście", line)
                 literal.append(escapes[self.source[i]])
@@ -94,7 +102,10 @@ class Lexer:
                 i = end
                 continue
             if ch == "$":
-                template, end = self.scan_template(i, line)
+                prefix = self.source[self.source.rfind("\n", 0, i) + 1 : i]
+                template, end = self.scan_template(
+                    i, line, bool(re.search(r"\.\s*file\s*/\s*$", prefix))
+                )
                 name = f"__kitlean_template_{len(self.templates)}"
                 self.templates[name] = template
                 output.append(name)

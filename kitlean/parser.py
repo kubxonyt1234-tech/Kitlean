@@ -3,13 +3,18 @@ import re
 import token
 import tokenize
 
-from .ast_nodes import Expression, Statement, Template
+from .ast_nodes import Expression, Statement
 from .errors import KitleanError
+from .expressions import Expressions
 from .lexer import Lexer
 
 IDENT = r"[^\W\d]\w*"
-KINDS = {"gui": {"menu"}, "item": {"button", "label", "input", "checkbox"}}
-TEXT_PROPERTIES = {"text", "title", "background", "color", "parent"}
+KINDS = {
+    "gui": {"menu"},
+    "item": {"button", "label", "input", "checkbox", "image"},
+    "audio": {"music"},
+}
+TEXT_PROPERTIES = {"text", "title", "background", "color", "parent", "file"}
 
 
 def source_text(tokens):
@@ -26,56 +31,7 @@ class Parser:
         self.pos = 0
 
     def expression(self, tokens, line):
-        text = source_text(tokens)
-        try:
-            tree = ast.parse(text, mode="eval").body
-        except SyntaxError:
-            raise KitleanError("Niepoprawne wyrażenie: " + text, line) from None
-        templates = self.templates
-
-        class ConvertTemplates(ast.NodeTransformer):
-            def visit_Name(self, node):
-                return templates.get(node.id, node)
-
-        tree = ConvertTemplates().visit(tree)
-        allowed = (
-            Template,
-            ast.Constant,
-            ast.Name,
-            ast.Load,
-            ast.List,
-            ast.Tuple,
-            ast.BinOp,
-            ast.UnaryOp,
-            ast.BoolOp,
-            ast.Compare,
-            ast.Call,
-            ast.Attribute,
-            ast.Subscript,
-            ast.Add,
-            ast.Sub,
-            ast.Mult,
-            ast.Div,
-            ast.FloorDiv,
-            ast.Mod,
-            ast.Pow,
-            ast.USub,
-            ast.UAdd,
-            ast.Not,
-            ast.And,
-            ast.Or,
-            ast.Eq,
-            ast.NotEq,
-            ast.Lt,
-            ast.LtE,
-            ast.Gt,
-            ast.GtE,
-            ast.In,
-            ast.NotIn,
-        )
-        if any(not isinstance(n, allowed) for n in ast.walk(tree)):
-            raise KitleanError("Niedozwolone wyrażenie", line)
-        return Expression(tree, line)
+        return Expressions(tokens, self.templates, line).parse()
 
     def value(self, tokens, line, text=False):
         if not tokens:
@@ -154,7 +110,25 @@ class Parser:
                         raise KitleanError("Niepoprawne parametry", line)
                     node = Statement("function", line, (match[1], params))
                 else:
-                    node = Statement(head, line, (self.expression(row[1:-1], line),))
+                    if head == "if" and values[1:3] == ["key", "/"]:
+                        if len(row) == 7 and values[4:6] == [".", "pressed"]:
+                            key_name = values[3]
+                        elif (
+                            len(row) == 6
+                            and row[3].kind == "NUMBER"
+                            and len(values[3]) == 2
+                            and values[3][0].isdigit()
+                            and values[3][1] == "."
+                            and values[4] == "pressed"
+                        ):
+                            key_name = values[3][0]
+                        else:
+                            raise KitleanError("Użyj if key/SPACE.pressed:", line)
+                        node = Statement("key_event", line, (key_name,))
+                    else:
+                        node = Statement(
+                            head, line, (self.expression(row[1:-1], line),)
+                        )
                 if self.tokens[self.pos].kind != "INDENT":
                     raise KitleanError("Oczekiwano wciętego bloku", line)
                 self.pos += 1
@@ -177,6 +151,17 @@ class Parser:
             if bracket and v[-1] != "]":
                 raise KitleanError("Brak zamknięcia ]", line)
             vals = [t.value for t in tokens]
+            if len(vals) >= 2 and vals[:2] == ["create", "timer"]:
+                tail = tokens[2:]
+                if bracket:
+                    if len(tail) < 2 or tail[0].value != "=":
+                        raise KitleanError('Oczekiwano ="alias"', line)
+                    return Statement(
+                        "create", line, ("timer", self.expression(tail[1:], line))
+                    )
+                if tail:
+                    raise KitleanError("Niepoprawne create timer", line)
+                return Statement("create", line, ("timer", None))
             if (
                 len(vals) < 4
                 or vals[0] != "create"
@@ -206,6 +191,18 @@ class Parser:
             return Statement("create_text", line, (kind, text))
         if v == ["close", ".", "app"]:
             return Statement("close_app", line)
+        if head in ("play", "pause", "resume", "stop", "start", "save", "load") and (
+            len(row) < 2 or v[1] not in (".", "(", "=")
+        ):
+            if len(row) != 2 or row[1].kind != "NAME":
+                raise KitleanError("Oczekiwano nazwy po " + head, line)
+            return Statement(head, line, (v[1],))
+        if head == "wait" and len(row) > 1 and v[1] == "/":
+            return Statement("wait", line, (self.expression(row[2:], line),))
+        if len(row) > 2 and row[0].kind == "NAME" and v[1] in ("+=", "-=", "*=", ":="):
+            return Statement(
+                "augment", line, (v[0], v[1], self.expression(row[2:], line))
+            )
         if head in ("run", "open", "close"):
             if len(row) == 2 and row[1].kind == "NAME":
                 return Statement(head, line, (Expression(ast.Constant(v[1]), line),))

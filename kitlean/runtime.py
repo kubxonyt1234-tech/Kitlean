@@ -1,7 +1,14 @@
+import math
+from pathlib import Path
+
+from .audio import Audio
 from .errors import KitleanError
 from .gui.elements import Element
 from .gui.events import Events
 from .gui.windows import Windows
+from .keyboard import Keyboard
+from .scheduler import Scheduler
+from .storage import Storage
 
 
 class Runtime:
@@ -14,11 +21,33 @@ class Runtime:
         self.line = 1
         self.bindings = {}
         self.dependencies = {}
+        self.defaults = {}
+        self.program = Path.cwd() / "program.kit"
+        self.audio = Audio()
+        self.scheduler = Scheduler(self)
+        self.keyboard = Keyboard(self)
+        self.timers = {}
+        self.closed = False
+        self.storage = Storage(self.program)
+
+    def resolve_name(self, name):
+        if name in self.objects:
+            return name
+        if name in self.defaults:
+            kind = self.defaults[name]
+            if kind == "gui.menu":
+                return self.last.get((None, kind))
+            if kind in ("audio.music", "timer"):
+                return self.last.get((None, kind))
+            return self.last.get((self.context, kind))
+        return name
 
     def get(self, name):
+        requested = name
+        name = self.resolve_name(name)
         if name not in self.objects:
             raise KitleanError(
-                "Unknown object: " + str(name),
+                "Unknown object: " + str(requested),
                 self.line,
                 "Create the object before using it.",
             )
@@ -47,12 +76,21 @@ class Runtime:
         e = Element(kind, name)
         if kind == "gui.menu":
             self.context = name
-        else:
+        elif kind.startswith("item."):
             if self.context is None:
                 raise KitleanError("Najpierw utwórz gui.menu", self.line)
             e.parent = self.context
         self.objects[name] = e
-        self.last[(self.context, kind)] = name
+        scope = self.context if kind.startswith("item.") else None
+        self.last[(scope, kind)] = name
+        short = (
+            "gui"
+            if kind == "gui.menu"
+            else "audio"
+            if kind == "audio.music"
+            else kind.split(".")[-1]
+        )
+        self.defaults[short] = kind
         if self.windows.root is not None:
             self.windows.build()
         return e
@@ -67,10 +105,20 @@ class Runtime:
         return e.properties[prop]
 
     def validate_property(self, e, prop):
+        if e.kind == "audio.music":
+            if prop not in ("file", "volume", "loop"):
+                raise KitleanError("Nieznana właściwość audio: " + prop, self.line)
+            return
+        if e.kind == "timer":
+            if prop not in ("interval", "loop"):
+                raise KitleanError("Nieznana właściwość timera: " + prop, self.line)
+            return
         common = {"background", "size", "position", "visible", "disabled"}
         allowed = common | (
             {"title"} if e.kind == "gui.menu" else {"text", "color", "parent"}
         )
+        if e.kind == "item.image":
+            allowed.add("file")
         if e.kind in ("item.input", "item.checkbox"):
             allowed.add("value")
         if prop not in allowed:
@@ -113,7 +161,7 @@ class Runtime:
             (env.resolve(variable), variable) for variable in template.dependencies
         }
         self.set(name, prop, value)
-        key = (name, prop)
+        key = (self.get(name).name, prop)
         self.bindings[key] = (template, env, line, dependencies)
         for dependency in dependencies:
             self.dependencies.setdefault(dependency, set()).add(key)
@@ -127,7 +175,24 @@ class Runtime:
 
     def set(self, name, prop, value, keep_binding=False):
         e = self.get(name)
+        name = e.name
         self.validate_property(e, prop)
+        if prop == "file":
+            if not isinstance(value, str) or not value:
+                raise KitleanError("file wymaga ścieżki tekstowej", self.line)
+            if not self.asset_path(value).is_file():
+                raise KitleanError(
+                    "Brak pliku: " + str(self.asset_path(value)), self.line
+                )
+        if prop in ("volume", "interval"):
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or (not 0 <= value <= 100 if prop == "volume" else value <= 0)
+            ):
+                raise KitleanError("Nieprawidłowa wartość " + prop, self.line)
+        if prop == "loop" and type(value) is not bool:
+            raise KitleanError("loop wymaga boolean", self.line)
         if prop in (
             "text",
             "title",
@@ -162,9 +227,23 @@ class Runtime:
             parent = self.get(value)
             if parent.kind != "gui.menu":
                 raise KitleanError("Rodzic musi być gui.menu", self.line)
-            e.parent = value
-            self.context = value
-            self.last[(value, e.kind)] = e.name
+            old_parent = e.parent
+            e.parent = parent.name
+            if (
+                old_parent != parent.name
+                and self.last.get((old_parent, e.kind)) == e.name
+            ):
+                candidates = [
+                    item.name
+                    for item in self.objects.values()
+                    if item.parent == old_parent and item.kind == e.kind
+                ]
+                if candidates:
+                    self.last[(old_parent, e.kind)] = candidates[-1]
+                else:
+                    self.last.pop((old_parent, e.kind), None)
+            self.context = parent.name
+            self.last[(parent.name, e.kind)] = e.name
         else:
             if e.kind == "item.input" and prop == "text":
                 e.properties["value"] = value
@@ -173,8 +252,47 @@ class Runtime:
             e.properties[prop] = value
             if prop == "value" and e.variable is not None:
                 e.variable.set(value)
+        if e.kind == "audio.music":
+            self.audio.change(e, prop)
+            return
+        if e.kind == "timer":
+            return
         if self.windows.root is not None:
             if prop in ("text", "title", "value"):
                 self.windows.update_text(e, prop)
             else:
                 self.windows.build()
+
+    def configure_program(self, program, data_root=None):
+        self.program = Path(program).resolve()
+        self.storage = Storage(self.program, data_root)
+
+    def asset_path(self, value):
+        path = Path(value)
+        return path if path.is_absolute() else self.program.parent / path
+
+    def start_timer(self, element):
+        if element.name in self.timers:
+            return
+
+        def tick():
+            self.timers.pop(element.name, None)
+            if element.properties["loop"]:
+                self.timers[element.name] = self.scheduler.later(
+                    element.properties["interval"], tick
+                )
+            self.events.emit(element, "tick")
+
+        self.timers[element.name] = self.scheduler.later(
+            element.properties["interval"], tick
+        )
+
+    def stop_timer(self, element):
+        self.scheduler.cancel(self.timers.pop(element.name, None))
+
+    def cleanup(self):
+        self.closed = True
+        self.scheduler.close()
+        self.timers.clear()
+        self.keyboard.close()
+        self.audio.close()

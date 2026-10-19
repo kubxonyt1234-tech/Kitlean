@@ -19,6 +19,7 @@ class Windows:
                 self.root.withdraw()
                 self.root.report_callback_exception = self.callback_error
                 self.root.protocol("WM_DELETE_WINDOW", self.close)
+                self.runtime.keyboard.attach(self.root)
             except tk.TclError as e:
                 raise KitleanError("Nie można uruchomić tkinter: " + str(e)) from None
 
@@ -35,7 +36,7 @@ class Windows:
             if element.kind == "gui.menu" and element.widget is None:
                 element.widget = tk.Frame(self.root)
         for element in rt.objects.values():
-            if element.kind == "gui.menu":
+            if not element.kind.startswith("item."):
                 continue
             parent = rt.get(element.parent)
             if element.widget is not None and str(element.widget.master) == str(
@@ -51,7 +52,7 @@ class Windows:
                 element.widget = tk.Button(
                     master, command=lambda e=element: rt.events.emit(e, "clicked")
                 )
-            elif element.kind == "item.label":
+            elif element.kind in ("item.label", "item.image"):
                 element.widget = tk.Label(master)
             elif element.kind == "item.input":
                 element.variable = tk.StringVar(
@@ -70,7 +71,7 @@ class Windows:
             element.widget.bind(
                 "<Enter>", lambda event, e=element: rt.events.emit(e, "hovered")
             )
-            if element.kind in ("item.label", "item.input"):
+            if element.kind in ("item.label", "item.input", "item.image"):
                 element.widget.bind(
                     "<Button-1>", lambda event, e=element: rt.events.emit(e, "clicked")
                 )
@@ -116,10 +117,12 @@ class Windows:
                 continue
             p = e.properties
             try:
+                if e.kind == "item.image":
+                    self.load_image(e)
                 e.widget.configure(background=p["background"])
                 if e.kind != "gui.menu":
                     e.widget.configure(fg=p["color"])
-                    if e.kind != "item.label":
+                    if e.kind not in ("item.label", "item.image"):
                         e.widget.configure(
                             state="disabled" if p["disabled"] else "normal"
                         )
@@ -173,11 +176,41 @@ class Windows:
             self.root.withdraw()
             self.active = None
 
+    def load_image(self, element):
+        from PIL import Image, ImageOps, ImageTk
+
+        value = element.properties["file"]
+        if not value:
+            return
+        parent = self.runtime.get(element.parent)
+        width, height = parent.properties["size"]
+        box = element.properties["size"] or (
+            min(320, max(1, width - 40)),
+            min(240, max(1, height - 40)),
+        )
+        path = self.runtime.asset_path(value)
+        signature = (str(path), box)
+        if getattr(element, "image_key", None) == signature:
+            return
+        try:
+            with Image.open(path) as source:
+                picture = ImageOps.exif_transpose(source).convert("RGBA")
+                picture.thumbnail(box, Image.Resampling.LANCZOS)
+                element.image = ImageTk.PhotoImage(picture, master=self.root)
+            element.widget.configure(image=element.image)
+            element.image_key = signature
+        except (OSError, ValueError) as error:
+            raise KitleanError(
+                "Nie można wczytać obrazka: " + str(error), self.runtime.line
+            ) from None
+
     def run(self, name):
+        self.open(name)
+        self.loop()
+
+    def loop(self):
         if self.running:
             raise KitleanError("Pętla GUI jest już uruchomiona", self.runtime.line)
-        self.error = None
-        self.open(name)
         self.running = True
         try:
             self.root.mainloop()
@@ -187,6 +220,7 @@ class Windows:
             raise self.error
 
     def close(self):
+        self.runtime.cleanup()
         if self.root is not None:
             for e in self.runtime.objects.values():
                 if e.variable is not None:
@@ -196,4 +230,5 @@ class Windows:
             self.root = None
             for e in self.runtime.objects.values():
                 e.widget = None
+                e.image_key = None
         self.active = None
