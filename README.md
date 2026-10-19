@@ -1,55 +1,95 @@
-# Kitlean 0.1 Beta
+# Kitlean 0.2 Beta
 
-Działający interpreter plików `.kit`, napisany w Pythonie 3.12+, z interfejsem tkinter dla Windows 10/11. Licencja MIT. Nie wymaga dodatkowych bibliotek do uruchamiania programów.
+Prosty język programowania z własną składnią i prawdziwym GUI tkinter. Aktualizacja istniejącego Kitlean 0.1 Beta. Python 3.12+, Windows 10/11, licencja MIT.
 
-## Instalacja
+## Pobranie i uruchomienie
 
-Zainstaluj Python 3.12+ z komponentem Tcl/Tk. W PowerShell, w katalogu projektu:
+Pobierz ZIP z repozytorium, rozpakuj i otwórz PowerShell w folderze zawierającym `install.ps1`. Wymagany Python 3.12 z Tcl/Tk.
+
+```powershell
+./install.ps1
+.\.venv\Scripts\kitlean.exe --version
+.\.venv\Scripts\kitlean.exe run examples/clicker.kit
+```
+
+Jeżeli korzystasz z istniejącego środowiska, po pobraniu nowego kodu uruchom ponownie `install.ps1` albo `.\.venv\Scripts\python.exe -m pip install -e .`.
+
+Instalacja ręczna:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
-.\.venv\Scripts\kitlean.exe --version
-.\.venv\Scripts\kitlean.exe check examples/main_menu.kit
-.\.venv\Scripts\kitlean.exe run examples/main_menu.kit
 ```
 
-Możesz także uruchomić `./install.ps1`. Po aktywacji środowiska działa krótkie polecenie `kitlean`. Bez instalacji, z katalogu projektu: `python -m kitlean run examples/main_menu.kit`.
+Po aktywacji środowiska przez `.\.venv\Scripts\Activate.ps1` działa polecenie `kitlean`. Bez instalacji, z folderu projektu: `python -m kitlean run examples/clicker.kit`. Nie zmieniamy systemowego PATH.
 
-## Pierwszy program
+## Pierwsza gra: Clicker
 
 ```kitlean
-[create gui.menu="menu"]
-[create item.button="przycisk"]
-przycisk.parent/"menu"
-create item.button/"Kliknij Mnie"
-if przycisk.clicked:
-    print("Hello Kitlean!")
-run gui.menu="menu"
+[create gui/menu="game"]
+game.title/$Kitlean Clicker$
+var/points = 0
+[create item/label="counter"]
+counter.text/$Punkty: {points}$
+[create item/button="click"]
+click.text/KLIKNIJ!
+if click.clicked:
+    points = points + 1
+run game
 ```
 
-Elementy otrzymują domyślne rozmiary i pionowy układ. Demonstracja ma ekran ustawień z powrotem do menu głównego. Szczegóły: [składnia](docs/syntax.md).
+Otwiera okno 800×500 z licznikiem i przyciskiem. Każde kliknięcie dodaje jeden punkt. Napis automatycznie śledzi zmienną, a jego szablon pozostaje zapisany w runtime. Nie ma sklepu, ulepszeń ani zaprogramowanego limitu punktów.
 
-## Testy
+Wersja bez aliasów:
+
+```kitlean
+create gui/menu
+create item/button/$Kliknij mnie!$
+run
+```
+
+Każde `create item/button/tekst` tworzy nowy przycisk. Alias jest nazwą w kodzie, nie podpisem elementu. Pełna [składnia](docs/syntax.md), [historia zmian](CHANGELOG.md) i [raport testów](docs/verification.md).
+
+## CLI
+
+```powershell
+kitlean --version
+kitlean run examples/clicker.kit
+kitlean check examples/clicker.kit
+kitlean help
+```
+
+Wersja CLI:
+
+```text
+Kitlean 0.2 Beta
+Python-powered programming language
+```
+
+`check` sprawdza składnię bez uruchamiania programu. Błędy nazw, wartości i brakujących zmiennych w interpolacji są wykrywane podczas wykonania.
+
+## Zgodność z 0.1
+
+Działają `[create gui.menu="menu"]`, `[create item.button="b"]`, `b.text/"Kliknij"`, `var points = 0`, `run gui.menu="menu"`, `open.gui.menu("menu")`, `close.gui.menu("menu")`. Stare `create item.button/"tekst"` ustawia tekst ostatniego przycisku; nowe `create item/button/tekst` tworzy kolejny element.
+
+Tekst bez delimitera oznacza dosłowny napis. Aby pokazać wartość zmiennej, użyj `$Wartość: {name}$`. Stare cytowane literały i wyrażenia zaczynające się od literału lub wywołania funkcji pozostają obsługiwane.
+
+## Testowanie
 
 ```powershell
 python -m pytest -q
-python -m pytest -q -m gui
 ```
 
-Testy oznaczone `gui` tworzą rzeczywiste okna i widgety Tk, wywołują zdarzenia, a następnie zamykają okna. Bez dostępnego pulpitu/Tk są oznaczane jako pominięte. Wynik wykonania w środowisku tworzenia: [raport](docs/verification.md).
+Testy `gui` wymagają tkinter i pulpitu. Tworzą rzeczywiste widgety i sprawdzają zdarzenia oraz pętlę aplikacji. Bez dostępnego Tk są pomijane. W środowisku tworzenia testy GUI uruchomiono osobno w świeżych procesach — szczegóły w raporcie.
 
-## Architektura
+## Architektura i ograniczenia Beta
 
-Lexer oparty na tokenizacji, parser budujący AST instrukcji, ograniczony AST wyrażeń i własny interpreter. Nie używa `eval` ani `exec`. Runtime zarządza obiektami, kontekstem, właściwościami i zdarzeniami. GUI korzysta z jednego `Tk` i jednej głównej pętli; menu są przełączanymi ramkami.
+Lexer rozpoznaje literały `$...$`, parser tworzy AST, a interpreter wykonuje dozwolone węzły. Nie korzysta z `eval()` ani `exec()`. Rejestr zależności `(zakres, nazwa zmiennej)` aktualizuje tylko powiązane napisy. Aktualizacja tekstu używa istniejącego widgetu i przelicza układ jego rodzica, bez ponownego tworzenia GUI i callbacków.
 
-## Ograniczenia wersji Beta
-
-- `check` sprawdza składnię i dopuszczalne formy AST; błędy nazw, typów i właściwości wykrywane są podczas wykonania.
-- Funkcje zwracają `null`; brak `return`, importów, klas, dostępu do plików i sieci oraz wykonywania kodu Pythona. Zmienne przypisane w funkcji są lokalne; odczyt korzysta z zakresu otaczającego.
-- Zdarzenia rejestruje tylko samodzielny warunek `if nazwa.clicked:` lub `if nazwa.hovered:`; brak `else` dla zdarzeń.
-- Obsługiwane elementy to menu, button, input, label i checkbox. Wartość input/checkbox odczytuje się przez `.value`. Treść input ustawia `.text` lub `.value`; aktualną zawartość odczytuje `.value`.
-- Układ pionowy nie przewija zawartości; przy dużej liczbie elementów trzeba zwiększyć okno lub ustawić pozycje. Ręczne pozycje mogą się nakładać. Style zależą od systemu i DPI.
-- Menu są ekranami jednego okna. `close.gui.menu` ukrywa aktywny ekran i okno; `open.gui.menu` pokazuje wybrany ekran; `close.app` zamyka GUI. Program kończy się po wykonaniu pozostałych instrukcji.
-- Interpreter nie jest piaskownicą zasobów: długie pętle i duże wyrażenia mogą blokować aplikację. Handlery wykonują się w wątku Tk.
-- Brak instalatora EXE i skojarzenia rozszerzenia `.kit`. Nie przeprowadzono osobnych testów na każdej wersji Windows 10/11.
+- Interpolacja przyjmuje nazwy `{points}`, bez wyrażeń `{points + 1}`. Reaktywny szablon musi być bezpośrednią wartością `.text`, `.title` lub tekstowego `.value`. Tekst obliczony w zmiennej lub `print` jest jednorazowym wynikiem.
+- Teksty `$...$` mieszczą się w jednej linii źródła; znak nowej linii zapisuje `\n`. Tekst z odstępami wymaga `$...$` (stare cudzysłowy są obsługiwane dla zgodności).
+- Funkcje zwracają `null`; brak `return`, importów, klas i API plików/sieci. `var/` deklaruje lokalnie; zwykłe przypisanie zmienia najbliższą istniejącą zmienną, a jeśli jej nie ma, tworzy lokalną.
+- Jedno okno i przełączane ekrany, bez przewijania automatycznego układu. Ręczne pozycje mogą się nakładać. Właściwości position/visible/disabled menu pozostają metadanymi — ekranami sterują open/close.
+- Zdarzenia obsługuje samodzielne `if obiekt.clicked:` / `if obiekt.hovered:`, bez `else`. Osobne bloki zdarzeń są osobnymi handlerami; ponowne wykonanie tej samej deklaracji w tym samym zakresie jej nie powiela.
+- Handlery działają w wątku Tk; długie pętle mogą blokować okno. Interpreter nie izoluje zużycia zasobów przez niezaufany program.
+- Brak instalatora EXE, automatycznej globalnej instalacji i skojarzenia `.kit`. Nie testowano osobno wszystkich wersji Windows i DPI.

@@ -1,7 +1,7 @@
-[create gui.menu="menu"]
-[create item.button="przycisk"]
-przycisk.parent/"menu"
-create item.button/"Kliknij Mnie"
+[create gui/menu="menu"]
+[create item/button="przycisk"]
+przycisk.parent/menu
+przycisk.text/$Kliknij Mnie$
 if przycisk.clicked:
-    print("Hello Kitlean!")
-run gui.menu="menu"
+    print($Hello Kitlean!$)
+run menu
