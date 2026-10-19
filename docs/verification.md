@@ -1,3 +1,50 @@
+# Raport Kitlean 0.3 Beta — 19 października 2026
+
+## Faktycznie wykonane testy
+
+Środowisko: Windows, CPython 3.12.10, pytest 9.1.1, pygame 2.6.1 / SDL_mixer, Pillow 13.0.0 i tkinter/Tk 8.6.
+
+- Instalacja editable 0.3.0b1 w venv: zaliczona.
+- 113 testów bez GUI: zaliczone. Obejmują dotychczasowe programy 0.1/0.2, nowy parser Pratt, priorytety i dwukropki, operatory skrócone, funkcje math, NWW/NWD, typy i zakresy, interpolację, zapisy JSON, izolację projektów i obsługę uszkodzeń.
+- 16 testów rzeczywistego GUI: zaliczone, część w osobnych procesach. 6 regresji 0.2 plus 10 testów 0.3 (w tym osobne formaty obrazków).
+- MP3, WAV i OGG: trzy testy rzeczywistego miksera, bez sterownika dummy. Potwierdzono dekodowanie, długość nagrania, aktywny kanał, brak nakładania kolejnej kopii, pause/resume/stop, zmianę głośności i zwolnienie mixera. Nie oceniano subiektywnej jakości odsłuchu.
+- Osobny test z atrapą audio sprawdza pojedyncze wywołanie play, pętlę, pauzę i ustawienia głośności. Osobny test uszkodzonego WAV sprawdza czytelny błąd.
+- PNG/JPEG/WebP: prawdziwe PhotoImage w tkinter. Potwierdzono proporcje, naturalne rozmiary, ramkę size, pozycję i visible. Uszkodzony obraz zgłasza linię przypisania file.
+- Klawiatura: syntetyczne zdarzenia prawdziwego Tk KeyPress/KeyRelease sprawdzają pojedyncze naliczenie, autorepeat oraz brak skrótu gry przy focus w Entry. Nie był to test fizycznej klawiatury na wszystkich systemach.
+- Timer 10 ms tykał podczas dwóch wait po 30 ms w funkcji wywołanej przyciskiem. Potwierdzono działanie innych zdarzeń, stop i brak zadań po zamknięciu. Sprawdzono również wait przed run i anulowanie oczekującego handlera.
+- Clicker 0.3: trzy rzeczywiste Button.invoke(), napis Punkty: 3, jeden aktywny kanał muzyki i poprawny odczyt trzech punktów przez nowy interpreter z tego samego projektu.
+- Regresja Clickera 0.2: 100 kolejnych kliknięć, zmiany ekranów i punkt 101 bez przebudowy GUI i podwójnych handlerów.
+- START.bat: rzeczywiście wykonany w świeżym folderze ze spacją w nazwie. Utworzył venv, pobrał zależności z PyPI, zainstalował Kitlean i uruchomił testowy plik .kit z prawdziwym oknem zamykanym timerem. Kod wyjścia 0, komunikat BAT_GUI_OK. Ponowne uruchomienie użyło środowiska bez instalacji i również zakończyło się kodem 0. Test używał pierwszego argumentu BAT; domyślny Clicker sprawdzono osobnym testem integracyjnym.
+- Ruff: wszystkie kontrole zaliczone.
+
+Łącznie zaliczono 129 przypadków pytest (113 bez GUI + 16 GUI). Nie jest to deklaracja jednego przebiegu całego zestawu bez pominięć.
+
+## Problem lokalnego Tk
+
+W zbiorczym przebiegu testów GUI 0.3 jeden test WebP został pominięty, ponieważ lokalny Tcl/Tk sporadycznie nie mógł odczytać pliku tk.tcl/sizegrip.tcl przy kolejnej inicjalizacji. Tego pominięcia nie zaliczono. Ten sam test WebP uruchomiony ponownie w świeżym procesie zakończył się wynikiem 1 passed. Pozostałe przypadki przeszły. Sześć starszych testów GUI wykonywano od razu osobno.
+
+## Ograniczenia i rozstrzygnięcia wymagań
+
+1. Oficjalne dzielenie 0.3 to `:`. Zachowano `/` i `//` w wyrażeniach dla pełnej zgodności z programami 0.1/0.2. Wymagania jednoczesnego zakazu starego operatora i zachowania wszystkich starszych programów są sprzeczne; wybrano zgodność i jawnie opisano wyjątek.
+2. Długie instrukcje bez wait mogą blokować Tk. Timery nie są zegarem czasu rzeczywistego. Początkowe wczytanie dużego audio/obrazka odbywa się synchronicznie; samo odtwarzanie jest nieblokujące.
+3. Audio jest dekodowane do pamięci, nie strumieniowane. WebP i kodeki zależą od zainstalowanych Pillow/SDL_mixer.
+4. Zapisy są atomowe, lecz nie mają blokady współbieżnych procesów. Pełna ścieżka pliku .kit definiuje projekt.
+5. Zamknięcie anuluje oczekujące sekwencje, również kod za run. Dawne proste programy z run na końcu zachowują działanie. Nie ma dalszego wykonywania po close.app.
+6. BAT nie instaluje automatycznie samego Pythona. Pierwsze uruchomienie wymaga Python >=3.12 z Tcl/Tk oraz internetu. Nie testowano gałęzi braku Pythona na czystym komputerze bez Pythona.
+7. Nie przeprowadzono testów na każdej wersji Windows 10/11, DPI ani na wszystkich urządzeniach audio. Nie ma EXE ani instalacji globalnej.
+
+## Powtórzenie testów
+
+```powershell
+python -m pip install -e ".[test]"
+python -m pytest -q -m "not gui"
+python -m pytest tests/test_gui03.py -q -rs
+```
+
+Jeśli lokalny Tk pomija przypadek z powodu inicjalizacji, uruchom ten konkretny identyfikator osobno. Raportuj pominięcia osobno od zaliczeń.
+
+---
+
 # Weryfikacja 0.2 Beta
 
 Data: 19 października 2026. Windows, CPython 3.12.10, pytest 9.1.1, Tk 8.6.

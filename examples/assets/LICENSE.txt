@@ -1,0 +1,1 @@
+Przykładowa melodia music.wav, music.mp3, music.ogg i grafiki logo.* zostały utworzone programowo na potrzeby Kitlean. Licencja MIT, jak projekt. Nie zawierają zewnętrznych nagrań ani obrazów.

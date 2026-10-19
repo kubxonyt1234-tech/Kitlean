@@ -1,0 +1,21 @@
+create gui/menu
+gui.title/$Muzyka Kitlean$
+create audio/music
+audio.file/assets/music.wav
+audio.loop/true
+create item/button/GRAJ
+if button.clicked:
+    play audio
+[create item/button="pauseButton"]
+pauseButton.text/PAUZA
+if pauseButton.clicked:
+    pause audio
+[create item/button="resumeButton"]
+resumeButton.text/WZNÓW
+if resumeButton.clicked:
+    resume audio
+[create item/button="stopButton"]
+stopButton.text/STOP
+if stopButton.clicked:
+    stop audio
+run gui

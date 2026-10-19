@@ -1,0 +1,16 @@
+[create gui/menu="game"]
+game.title/$Kitlean Clicker 0.3$
+var/points = 0
+load points
+create item/label/$Punkty: {points}$
+[create item/button="click"]
+click.text/KLIKNIJ!
+[create audio/music="song"]
+song.file/assets/music.wav
+song.volume/50
+song.loop/true
+if click.clicked:
+    points += 1
+    save points
+    play song
+run game

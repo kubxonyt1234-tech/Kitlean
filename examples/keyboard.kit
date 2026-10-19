@@ -1,0 +1,11 @@
+create gui/menu
+gui.title/$Klawiatura: SPACE dodaje punkt$
+var/points = 0
+create item/label/$Punkty: {points}$
+create item/input
+input.value/$Tutaj wpisuj bez aktywacji gry$
+if key/SPACE.pressed:
+    points += 1
+if key/ESCAPE.pressed:
+    close.app
+run gui

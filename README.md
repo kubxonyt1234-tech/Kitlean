@@ -1,95 +1,87 @@
-# Kitlean 0.2 Beta
+# Kitlean 0.3 Beta
 
-Prosty język programowania z własną składnią i prawdziwym GUI tkinter. Aktualizacja istniejącego Kitlean 0.1 Beta. Python 3.12+, Windows 10/11, licencja MIT.
+Język programowania `.kit` do prostych aplikacji i gier. Python 3.12+, tkinter, Windows 10/11, licencja MIT. Aktualizacja istniejących wersji 0.1 i 0.2.
 
-## Pobranie i uruchomienie
+## Najprostsze uruchomienie
 
-Pobierz ZIP z repozytorium, rozpakuj i otwórz PowerShell w folderze zawierającym `install.ps1`. Wymagany Python 3.12 z Tcl/Tk.
+1. Pobierz i rozpakuj ZIP.
+2. Otwórz folder zawierający **START.bat**.
+3. Kliknij **START.bat** dwa razy.
 
-```powershell
-./install.ps1
-.\.venv\Scripts\kitlean.exe --version
-.\.venv\Scripts\kitlean.exe run examples/clicker.kit
-```
+Launcher znajduje Python 3.12+, tworzy `.venv`, instaluje Kitlean, pygame i Pillow, a następnie otwiera **Clicker 0.3 z muzyką i zapisywaniem punktów**. Pierwsza instalacja wymaga internetu. Kolejne uruchomienia używają istniejącego środowiska. Jeżeli brakuje Pythona, pojawia się adres oficjalnego instalatora; BAT nie pobiera ani nie instaluje go automatycznie.
 
-Jeżeli korzystasz z istniejącego środowiska, po pobraniu nowego kodu uruchom ponownie `install.ps1` albo `.\.venv\Scripts\python.exe -m pip install -e .`.
+Możesz przeciągnąć własny plik `.kit` na START.bat lub wykonać `START.bat "C:\Moje programy\gra.kit"`. Nie wymaga PowerShell ani zmiany ExecutionPolicy. Błąd pozostawia okno z komunikatem. Brak globalnej modyfikacji PATH.
 
-Instalacja ręczna:
+Alternatywa dla programistów:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\.venv\Scripts\kitlean.exe run examples/clicker_03.kit
 ```
 
-Po aktywacji środowiska przez `.\.venv\Scripts\Activate.ps1` działa polecenie `kitlean`. Bez instalacji, z folderu projektu: `python -m kitlean run examples/clicker.kit`. Nie zmieniamy systemowego PATH.
+Dostępny jest również `install.ps1`. CLI zachowuje `run`, `check`, `help`, `--version`.
 
-## Pierwsza gra: Clicker
+## Co działa w 0.3
 
-```kitlean
-[create gui/menu="game"]
-game.title/$Kitlean Clicker$
-var/points = 0
-[create item/label="counter"]
-counter.text/$Punkty: {points}$
-[create item/button="click"]
-click.text/KLIKNIJ!
-if click.clicked:
-    points = points + 1
-run game
-```
-
-Otwiera okno 800×500 z licznikiem i przyciskiem. Każde kliknięcie dodaje jeden punkt. Napis automatycznie śledzi zmienną, a jego szablon pozostaje zapisany w runtime. Nie ma sklepu, ulepszeń ani zaprogramowanego limitu punktów.
-
-Wersja bez aliasów:
+- GUI z domyślnym pionowym układem, przyciski, input, label, checkbox i obrazki PNG/JPEG/WebP.
+- Reaktywne teksty `$Punkty: {points}$`, zmienne, listy, warunki, funkcje i pętle.
+- Audio MP3/WAV/OGG: głośność, pętla, play/pause/resume/stop, bez nakładania kolejnych kopii tej samej muzyki.
+- Zapisy i odczyty JSON, osobne dla każdego programu, zapis atomowy przez plik tymczasowy.
+- Klawiatura A–Z, 0–9, SPACE, ENTER, ESCAPE i strzałki; jedno zdarzenie na naciśnięcie, bez skrótów gry w input.
+- Timery start/stop oraz `wait` zawieszające wyłącznie bieżący ciąg instrukcji, także w funkcji wywołanej z handlera.
+- Dzielenie `:`, operatory `+=`, `-=`, `*=`, `:=`, funkcje math, NWW i NWD.
+- Anonimowe obiekty i skróty `gui`, `button`, `label`, `input`, `checkbox`, `image`, `audio`, `timer`.
 
 ```kitlean
 create gui/menu
-create item/button/$Kliknij mnie!$
-run
+gui.title/$Kitlean 0.3$
+var/points = 0
+load points
+create item/label/$Punkty: {points}$
+create item/button/KLIKNIJ!
+if button.clicked:
+    points += 1
+    save points
+if key/SPACE.pressed:
+    points += 1
+run gui
 ```
 
-Każde `create item/button/tekst` tworzy nowy przycisk. Alias jest nazwą w kodzie, nie podpisem elementu. Pełna [składnia](docs/syntax.md), [historia zmian](CHANGELOG.md) i [raport testów](docs/verification.md).
+## Przykłady
 
-## CLI
+| Plik w examples/ | Funkcja |
+|---|---|
+| clicker_03.kit | Kliknięcia, zapis, odczyt i zapętlona muzyka |
+| clicker.kit, main_menu.kit | Zgodność wersji 0.2 |
+| music.kit | Play/pause/resume/stop |
+| images.kit | Obrazek bez ręcznego rozmiaru |
+| math.kit | Działania i funkcje math |
+| nww_nwd.kit | NWW i NWD |
+| timers.kit | Timer i wait bez blokowania okna |
+| keyboard.kit | SPACE/ESCAPE oraz input bez skrótów |
+| save_load.kit | Trwały licznik uruchomień |
+
+Zasoby w `examples/assets` są wygenerowanymi na potrzeby projektu materiałami MIT. Przykłady nie wskazują brakujących plików. Ścieżki względne liczone są od pliku `.kit`, niezależnie od bieżącego katalogu terminala.
+
+## Dokumentacja i testy
+
+[Składnia](docs/syntax.md), [nowe funkcje 0.3](docs/version-0.3.md), [historia](CHANGELOG.md), [raport wykonanych testów](docs/verification.md).
 
 ```powershell
-kitlean --version
-kitlean run examples/clicker.kit
-kitlean check examples/clicker.kit
-kitlean help
+python -m pytest -q -m "not gui"
+python -m pytest tests/test_gui03.py -q -rs
 ```
 
-Wersja CLI:
+Testy GUI wymagają pulpitu i tkinter. Testy oznaczone audio korzystają z rzeczywistego SDL_mixer; muszą mieć działające urządzenie audio. Testy z atrapami są oddzielne. Raport jasno rozróżnia testy wykonane, pominięte i ograniczenia.
 
-```text
-Kitlean 0.2 Beta
-Python-powered programming language
-```
+## Zgodność i ograniczenia
 
-`check` sprawdza składnię bez uruchamiania programu. Błędy nazw, wartości i brakujących zmiennych w interpolacji są wykrywane podczas wykonania.
-
-## Zgodność z 0.1
-
-Działają `[create gui.menu="menu"]`, `[create item.button="b"]`, `b.text/"Kliknij"`, `var points = 0`, `run gui.menu="menu"`, `open.gui.menu("menu")`, `close.gui.menu("menu")`. Stare `create item.button/"tekst"` ustawia tekst ostatniego przycisku; nowe `create item/button/tekst` tworzy kolejny element.
-
-Tekst bez delimitera oznacza dosłowny napis. Aby pokazać wartość zmiennej, użyj `$Wartość: {name}$`. Stare cytowane literały i wyrażenia zaczynające się od literału lub wywołania funkcji pozostają obsługiwane.
-
-## Testowanie
-
-```powershell
-python -m pytest -q
-```
-
-Testy `gui` wymagają tkinter i pulpitu. Tworzą rzeczywiste widgety i sprawdzają zdarzenia oraz pętlę aplikacji. Bez dostępnego Tk są pomijane. W środowisku tworzenia testy GUI uruchomiono osobno w świeżych procesach — szczegóły w raporcie.
-
-## Architektura i ograniczenia Beta
-
-Lexer rozpoznaje literały `$...$`, parser tworzy AST, a interpreter wykonuje dozwolone węzły. Nie korzysta z `eval()` ani `exec()`. Rejestr zależności `(zakres, nazwa zmiennej)` aktualizuje tylko powiązane napisy. Aktualizacja tekstu używa istniejącego widgetu i przelicza układ jego rodzica, bez ponownego tworzenia GUI i callbacków.
-
-- Interpolacja przyjmuje nazwy `{points}`, bez wyrażeń `{points + 1}`. Reaktywny szablon musi być bezpośrednią wartością `.text`, `.title` lub tekstowego `.value`. Tekst obliczony w zmiennej lub `print` jest jednorazowym wynikiem.
-- Teksty `$...$` mieszczą się w jednej linii źródła; znak nowej linii zapisuje `\n`. Tekst z odstępami wymaga `$...$` (stare cudzysłowy są obsługiwane dla zgodności).
-- Funkcje zwracają `null`; brak `return`, importów, klas i API plików/sieci. `var/` deklaruje lokalnie; zwykłe przypisanie zmienia najbliższą istniejącą zmienną, a jeśli jej nie ma, tworzy lokalną.
-- Jedno okno i przełączane ekrany, bez przewijania automatycznego układu. Ręczne pozycje mogą się nakładać. Właściwości position/visible/disabled menu pozostają metadanymi — ekranami sterują open/close.
-- Zdarzenia obsługuje samodzielne `if obiekt.clicked:` / `if obiekt.hovered:`, bez `else`. Osobne bloki zdarzeń są osobnymi handlerami; ponowne wykonanie tej samej deklaracji w tym samym zakresie jej nie powiela.
-- Handlery działają w wątku Tk; długie pętle mogą blokować okno. Interpreter nie izoluje zużycia zasobów przez niezaufany program.
-- Brak instalatora EXE, automatycznej globalnej instalacji i skojarzenia `.kit`. Nie testowano osobno wszystkich wersji Windows i DPI.
+- Działają stare polecenia obiektów z kropką, dawne stringi, `var points = ...`, starsze polecenia menu i interpolacja 0.2. Oficjalnym operatorem dzielenia 0.3 jest `:`. `/` i `//` w wyrażeniach pozostały jako wyjątek zgodności 0.1/0.2; nowe przykłady ich nie używają. To świadome rozstrzygnięcie sprzeczności między pełną zgodnością a zakazem dawnego dzielenia.
+- Jawny alias ma pierwszeństwo przed skrótem typu. Skróty item wskazują ostatni obiekt typu w bieżącym menu, a gui/audio/timer ostatni obiekt globalnie. Nie przeszukują innych menu. Do trwałego wskazywania konkretnego obiektu używaj aliasu.
+- Timer i wait działają kooperacyjnie na jednej pętli Tk. Długa pętla bez wait nadal może blokować okno. Kolejne handlery mogą działać podczas oczekiwania wcześniejszych. Zamknięcie anuluje oczekujące zadania, także kod po run.
+- `run` oddaje obsługę okna pętli Tk; instrukcje po run nie są wykonywane po zamknięciu, bo zamknięcie anuluje zadania. `close` tylko ukrywa ekran, a `close.app` zwalnia zasoby.
+- Audio ładuje cały plik do pamięci; kodeki zależą od SDL_mixer. Nie ma streamingu, miksowania zaawansowanego ani kontroli urządzeń. Potwierdzono działanie kanałów, nie przeprowadzono subiektywnego odsłuchu na każdym sprzęcie.
+- Rozmiar obrazka bez size mieści się w 320×240 i obszarze menu z marginesem 20 px, z zachowaniem proporcji. Pozostały układ nie przewija zawartości. Ręczne pozycje mogą wychodzić poza ekran.
+- Zapisy rozdziela pełna ścieżka programu. Przeniesienie `.kit` tworzy nowy zestaw zapisów. Brak synchronizacji między równocześnie uruchomionymi kopiami projektu. Uszkodzony JSON zgłasza błąd i nie jest nadpisywany automatycznie.
+- Brak return, klas i importów w języku. Interpreter nie jest piaskownicą zasobów. Nie testowano wszystkich wariantów Windows 10/11 i DPI. BAT wymaga dostępnego instalatora Pythona/pip oraz internetu przy pierwszym uruchomieniu.

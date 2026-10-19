@@ -1,0 +1,16 @@
+create gui/menu
+gui.title/$Timer i wait bez blokowania$
+var/seconds = 0
+create item/label/$Sekundy: {seconds}$
+[create timer="clock"]
+clock.interval/1
+clock.loop/true
+if clock.tick:
+    seconds += 1
+create item/button/$Poczekaj 2 sekundy$
+if button.clicked:
+    button.disabled/true
+    wait/2
+    button.disabled/false
+start clock
+run gui
