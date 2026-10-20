@@ -1,0 +1,11 @@
+[create gui.menu/Kamera="game"]
+game.size=(640,400)
+[create item.sprite/assets/player.png="player"]
+player.position=(100,100)
+player.setting.move=wsad/100
+game.camera.follow=player
+game.camera.zoom=1.5
+[create item.sprite/assets/zombie.png="landmark"]
+landmark.position=(300,150)
+create item.label/$WSAD: ruch. Kamera śledzi środek gracza.$
+run game

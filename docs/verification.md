@@ -1,3 +1,43 @@
+# Raport Kitlean 0.4 Beta — 20 października 2026
+
+## Wynik
+
+Rozbudowano istniejący interpreter 0.3, zachowując starsze moduły i składnię. Dodano tworzenie obiektów z nowymi tekstami i aliasami, parametry =, when, action, thene, sprite’y, animacje, ruch, prostą fizykę, kamerę, mysz, segmenty SQLite, szablony NPC, copy/del i stylowanie GUI. Dziewięć przykładów jest wykonywalnych, a trzy nowe grafiki są dołączone na licencji MIT. START.bat domyślnie otwiera Infinite World.
+
+## Wykonane kontrole
+
+Środowisko: Windows, CPython 3.12.10, Tk 8.6, pytest 9.1.1, pygame 2.6.1 i Pillow 13.0.0.
+
+- 145 testów bez GUI: wszystkie zaliczone w jednym przebiegu. To 113 regresji i 32 przypadki 0.4, w tym błędy parametrów, brakujące zasoby, kopie, NPC, ruch zależny od czasu, normalizacja przekątnej, kolizje, skok, animacje i kamera.
+- 30 testów rzeczywistego GUI: każdy zaliczony w osobnym świeżym procesie, bez pominięć. Obejmują 16 regresji i 14 przypadków 0.4: prawdziwy Canvas, obrót i zoom obrazów, zaokrąglony przycisk i invoke, fullscreen, mysz, syntetyczne klawisze, asynchroniczne thene, animację zakończoną eventem i dziewięć przykładów.
+- Segmenty: wyjście/powrót, 50 pól w prawo i 50 z powrotem, następnie dół/góra; 52 rekordy bazy i maksymalnie cztery żywe obiekty w scenariuszu. Zachowano obiekt gracza i właściwości odtworzonego NPC. Osobny test GUI przechodzi osiem razy między dwoma segmentami bez mnożenia Canvas i NPC.
+- Sprawdzono konflikt identyfikatora segmentu bez utraty aktywnych obiektów, zajętą mapę, ograniczenie prób losowania i pomijanie spawnu przy powrocie do snapshotu.
+- Instalacja editable 0.4.0b1 oraz wynik CLI „Kitlean 0.4 Beta / Python-powered programming language”: zaliczone.
+- START.bat uruchomiono w świeżym katalogu ze spacją w nazwie: utworzył .venv, zainstalował zależności i otworzył testowe okno zamykane timerem. Kod 0 i BAT_GUI_OK. Drugie uruchomienie bez ponownej instalacji także kod 0. Domyślny Infinite World sprawdzono oddzielnym testem GUI.
+- Ruff check i format: zaliczone. Diff sprawdzony z uwzględnieniem końców linii Windows.
+
+Łącznie 175 zaliczonych przypadków pytest. Początkowy zbiorczy przebieg GUI miał dwa pominięcia przez sporadyczny błąd inicjalizacji lokalnego Tcl/Tk; pominięć nie zaliczono. Końcowe 30 oddzielnych procesów przeszło w całości. Nie jest to deklaracja jednego zbiorczego przebiegu bez pominięć.
+
+## Poprawione problemy
+
+Usunięto wejście do blokującej pętli GUI po samym ustawieniu właściwości przy aktywnym zegarze świata. Canvas-backed button podnoszony jest przez właściwe Tk raise, bez kolizji z Canvas.lift. Parser rozróżnia wykrzyknik tekstu KLIKNIJ! i delimiter aliasu. Stałe pozycje NPC rezerwowane są przed losowaniem, eliminując losowy konflikt w przykładzie i teście. Zamknięcie anuluje zadania świata i kontynuacje.
+
+## Ograniczenia i świadome decyzje
+
+Fizyka to stałokrokowe AABB, bez mas, tarcia i ciągłego wykrywania szybkich zderzeń. Obrót i bounce są wizualne. NPC to niezależne instancje, bez AI pościgu. Kamera nie zmienia logicznych granic segmentu. Ukryte sprite’y wstrzymują symulację i animację.
+
+W RAM żyje aktualny segment, cache źródeł obrazów ma limit 32, cache SQLite około 512 KiB. Baza na dysku rośnie wraz z odwiedzonym światem. Startowy segment i gracz są tworzeni z kodu przy starcie; snapshoty odwiedzonych pól nie stanowią pełnego save-game. Handlery nie są serializowane. Brak testu wszystkich konfiguracji Windows/DPI oraz fizycznych urządzeń wejścia; klawisze/mysz sprawdzano zdarzeniami Tk. Testy audio potwierdzają działanie dekoderów i kanałów, nie ocenę odsłuchu na każdym sprzęcie.
+
+Przejście zapisuje i zwalnia poprzednie obiekty przed kolejnym kadrem; del game.last=copy potwierdza zwolnienie poprawnie zapisanego segmentu. thene po animate oznacza uruchomienie animacji, nie jej zakończenie. Przy odtwarzaniu pola thene summon w tym samym łańcuchu jest pomijane, aby nie dublować zapisanych NPC. Brak transakcyjnego cofania całego łańcucha.
+
+Zachowano / i // w starszych wyrażeniach jako jawny wyjątek zgodności, mimo wymogu nowego dzielenia :. Nowe przykłady stosują :. Pełny opis semantyki i składni: docs/version-0.4.md.
+
+## Dostarczenie
+
+ZIP zawiera źródła, testy, dokumentację, zasoby i START.bat, bez .venv, cache, prywatnych danych zapisu i plików roboczych. Pierwsze uruchomienie wymaga Python 3.12+ z tkinter oraz internetu do pip. Aktualizacja GitHub zachowuje historię istniejącego repozytorium; wydanie v0.4.0-beta przygotowywane jest jako szkic.
+
+---
+
 # Raport Kitlean 0.3 Beta — 19 października 2026
 
 ## Faktycznie wykonane testy

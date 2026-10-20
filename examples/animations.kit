@@ -1,0 +1,18 @@
+[create gui.menu/Animacje="game"]
+[create item.sprite/assets/player.png="player"]
+player.position=(100,120)
+player.animation.speed=1
+player.animation.loop=true
+player.action.animate(bounce)
+[create item.sprite/assets/zombie.png="spinner"]
+spinner.position=(220,120)
+spinner.animation.speed=0.5
+spinner.animation.loop=true
+spinner.action.animate(rotate)
+[create item.sprite/assets/player.png="ghost"]
+ghost.position=(340,120)
+ghost.animation.speed=0.4
+ghost.action.animate(fade)
+when ghost.animation.finished:
+    print($Zakończono fade$)
+run game

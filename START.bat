@@ -23,10 +23,10 @@ if errorlevel 1 goto failed
 if not exist ".venv\Scripts\python.exe" goto failed
 :checkinstall
 if not exist ".venv\Scripts\kitlean.exe" goto install
-".venv\Scripts\python.exe" -c "from importlib.metadata import version; assert version('kitlean') == '0.3.0b1'; import pygame, PIL" >nul 2>nul
+".venv\Scripts\python.exe" -c "from importlib.metadata import version; assert version('kitlean') == '0.4.0b1'; import pygame, PIL" >nul 2>nul
 if not errorlevel 1 goto launch
 :install
-echo Instalowanie Kitlean 0.3 Beta i bibliotek audio/obrazkow...
+echo Instalowanie Kitlean 0.4 Beta i bibliotek audio/obrazkow...
 echo Pierwsze uruchomienie wymaga internetu.
 ".venv\Scripts\python.exe" -m pip install -e .
 if errorlevel 1 goto failed
@@ -35,7 +35,7 @@ if "%~1"=="" goto demo
 ".venv\Scripts\python.exe" -m kitlean run "%~1"
 goto finished
 :demo
-".venv\Scripts\python.exe" -m kitlean run "examples\clicker_03.kit"
+".venv\Scripts\python.exe" -m kitlean run "examples\infinite_world.kit"
 :finished
 if errorlevel 1 goto failed
 exit /b 0

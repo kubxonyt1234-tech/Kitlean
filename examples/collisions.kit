@@ -1,0 +1,13 @@
+[create gui.menu/Kolizje="game"]
+var/hits = 0
+[create item.label/$Kontakty: {hits}. Ruch: WSAD.$="counter"]
+[create item.sprite/assets/player.png="player"]
+player.position=(100,150)
+player.setting.move=wsad/100
+player.collision=true
+[create item.sprite/assets/zombie.png="enemy"]
+enemy.position=(260,150)
+enemy.collision=true
+when player.collided.enemy:
+    hits += 1
+run game

@@ -1,6 +1,8 @@
-# Składnia Kitlean 0.3 Beta
+# Składnia Kitlean 0.4 Beta
 
-Nowe funkcje: [audio, obrazki, zapisy, klawiatura, timery i matematyka 0.3](version-0.3.md). Poniżej wspólna składnia zgodna z 0.2. W nowych programach używaj `:` do dzielenia; `/` w wyrażeniach jest wyłącznie starszym aliasem zgodności.
+Gry 2D i nowa składnia: [pełny opis 0.4](version-0.4.md).
+
+Zachowane funkcje: [audio, obrazki, zapisy, klawiatura, timery i matematyka 0.3](version-0.3.md). Poniżej wspólna składnia zgodna z 0.2. W nowych programach używaj `:` do dzielenia; `/` w wyrażeniach jest wyłącznie starszym aliasem zgodności.
 
 Pliki `.kit` są zapisywane w UTF-8. Wielkość liter ma znaczenie. Bloki wymagają wcięć (zalecane cztery spacje). `#` rozpoczyna komentarz poza tekstem. Literały i wyrażenia nie wykonują kodu Pythona.
 

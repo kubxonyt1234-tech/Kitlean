@@ -1,0 +1,16 @@
+[create gui.menu/$Style GUI 0.4$="game"]
+game.size=(800,500)
+game.background=#FFFFFF
+[create item.button/$Przycisk pośrodku$="click"]
+click.align=center
+click.margin=30
+click.rounded=18
+click.background=#FF6600
+click.color/#FFFFFF
+when click.clicked:
+    print($Kliknięto!$)
+create item.label/$Prawy przycisk myszy wypisuje pozycję.$
+label.align=right
+when mouse.right.clicked:
+    print(mouse.position)
+run game

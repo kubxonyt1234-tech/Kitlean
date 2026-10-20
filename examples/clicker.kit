@@ -1,20 +1,11 @@
-# Kitlean Clicker
-# Created with Kitlean 0.2 Beta
-
-[create gui/menu="game"]
-game.title/$Kitlean Clicker$
-
+[create gui.menu/$Kitlean Clicker 0.4$="game"]
 var/points = 0
-
-[create item/label="counter"]
-counter.parent/game
-counter.text/$Punkty: {points}$
-
-[create item/button="click"]
-click.parent/game
-click.text/KLIKNIJ!
-
-if click.clicked:
-    points = points + 1
-
+[create item.label/$Punkty: {points}$="counter"]
+counter.align=center
+[create item.button/KLIKNIJ!="click"]
+click.align=center
+click.rounded=12
+click.background=#FF6600
+when click.clicked:
+    points += 1
 run game

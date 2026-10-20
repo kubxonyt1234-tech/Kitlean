@@ -1,0 +1,25 @@
+[create gui.menu/$Kitlean 0.4 - Infinite World$="game"]
+game.size=(640,400)
+game.background=#E7F3E8
+var/visits = 0
+[create item.label/$WSAD: ruch | ESC: koniec | Przejścia: {visits}$="hud"]
+hud.align=center
+hud.background=#E7F3E8
+[create item.sprite/assets/player.png="player"]
+player.position=(100,100)
+player.setting.move=wsad/120
+player.collision=true
+game.camera.follow=player
+game.camera.zoom=1.5
+[create item.sprite/assets/zombie.png="zombie"]
+zombie.collision=true
+zombie.save=npc
+when key.ESCAPE.pressed:
+    close.app
+repeat forever:
+    if player.outof.gui.game:
+        create game.gui.next
+        thene visits += 1
+        thene summon random.npc/zombie
+        thene del game.last=copy
+run game

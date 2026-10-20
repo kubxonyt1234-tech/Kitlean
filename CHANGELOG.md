@@ -1,5 +1,15 @@
 # Historia zmian
 
+## 0.4.0b1 — 2026-10-20
+
+- Nowe create z tekstem i aliasem, parametry =, when, action i sekwencje thene.
+- Canvas sprite, animacje bounce/rotate/fade, ruch WSAD/strzałki, stały krok fizyki, grawitacja, skok, kolizje AABB.
+- Kamera follow/zoom, mysz, fullscreen, align/margin i rzeczywiście zaokrąglone przyciski.
+- Segmenty mapy w SQLite z ograniczoną liczbą żywych obiektów i odtwarzaniem odwiedzonych pól.
+- Szablony NPC, niezależne copy, summon i del z czyszczeniem zasobów.
+- Dziewięć przykładów 0.4 i trzy własne grafiki MIT; START.bat instaluje lokalnie i otwiera Infinite World.
+- Zachowane funkcje 0.1–0.3; / pozostaje wyjątkiem zgodności. Szczegółowe granice implementacji w docs/version-0.4.md.
+
 ## 0.3.0b1 — 2026-10-19
 
 - Własny parser Pratt: dzielenie `:`, skrócone przypisania, funkcje math, NWW i NWD oraz KitleanMathError.

@@ -1,0 +1,17 @@
+[create gui.menu/$Szablony NPC$="game"]
+[create item.sprite/assets/player.png="player"]
+player.position=(100,100)
+player.setting.move=wsad/100
+player.collision=true
+[create item.sprite/assets/zombie.png="zombie"]
+zombie.speed=3
+zombie.collision=true
+zombie.save=npc
+summon npc/zombie=(300,200)
+[summon random.npc/zombie="enemy1"]
+enemy1.speed=5
+summon npc/zombie=player
+when player.collided.enemy1:
+    enemy1.action.animate(bounce)
+create item.label/$WSAD: ruch. Zielone postacie to instancje NPC.$
+run game

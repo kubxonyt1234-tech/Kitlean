@@ -1,1 +1,2 @@
 Przykładowa melodia music.wav, music.mp3, music.ogg i grafiki logo.* zostały utworzone programowo na potrzeby Kitlean. Licencja MIT, jak projekt. Nie zawierają zewnętrznych nagrań ani obrazów.
+Grafiki player.png, zombie.png i platform.png utworzono programowo na potrzeby wersji 0.4; również licencja MIT.

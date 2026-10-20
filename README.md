@@ -1,6 +1,6 @@
-# Kitlean 0.3 Beta
+# Kitlean 0.4 Beta
 
-Język programowania `.kit` do prostych aplikacji i gier. Python 3.12+, tkinter, Windows 10/11, licencja MIT. Aktualizacja istniejących wersji 0.1 i 0.2.
+Język programowania `.kit` do prostych aplikacji i gier. Python 3.12+, tkinter, Windows 10/11, licencja MIT. Rozbudowa istniejącego interpretera 0.1–0.3.
 
 ## Najprostsze uruchomienie
 
@@ -8,7 +8,7 @@ Język programowania `.kit` do prostych aplikacji i gier. Python 3.12+, tkinter,
 2. Otwórz folder zawierający **START.bat**.
 3. Kliknij **START.bat** dwa razy.
 
-Launcher znajduje Python 3.12+, tworzy `.venv`, instaluje Kitlean, pygame i Pillow, a następnie otwiera **Clicker 0.3 z muzyką i zapisywaniem punktów**. Pierwsza instalacja wymaga internetu. Kolejne uruchomienia używają istniejącego środowiska. Jeżeli brakuje Pythona, pojawia się adres oficjalnego instalatora; BAT nie pobiera ani nie instaluje go automatycznie.
+Launcher znajduje Python 3.12+, tworzy `.venv`, instaluje Kitlean, pygame i Pillow, a następnie otwiera **Infinite World 0.4: WSAD, kamera i segmenty mapy**. Pierwsza instalacja wymaga internetu. Kolejne uruchomienia używają istniejącego środowiska. Jeżeli brakuje Pythona, pojawia się adres oficjalnego instalatora; BAT nie pobiera ani nie instaluje go automatycznie.
 
 Możesz przeciągnąć własny plik `.kit` na START.bat lub wykonać `START.bat "C:\Moje programy\gra.kit"`. Nie wymaga PowerShell ani zmiany ExecutionPolicy. Błąd pozostawia okno z komunikatem. Brak globalnej modyfikacji PATH.
 
@@ -17,12 +17,20 @@ Alternatywa dla programistów:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
-.\.venv\Scripts\kitlean.exe run examples/clicker_03.kit
+.\.venv\Scripts\kitlean.exe run examples/infinite_world.kit
 ```
 
 Dostępny jest również `install.ps1`. CLI zachowuje `run`, `check`, `help`, `--version`.
 
-## Co działa w 0.3
+## Co działa w 0.4
+
+- Sprite’y na Canvas, WSAD/strzałki, grawitacja, skok i kolizje prostokątów.
+- Kamera, animacje bounce/rotate/fade oraz zdarzenia myszy i `when`.
+- Segmenty mapy zapisywane w SQLite, powrót do odwiedzonych miejsc, niezależne kopie NPC.
+- Sekwencje `thene`, zaokrąglone przyciski, wyrównanie i fullscreen.
+- [Pełna składnia i ograniczenia 0.4](docs/version-0.4.md).
+
+## Zachowane funkcje
 
 - GUI z domyślnym pionowym układem, przyciski, input, label, checkbox i obrazki PNG/JPEG/WebP.
 - Reaktywne teksty `$Punkty: {points}$`, zmienne, listy, warunki, funkcje i pętle.
@@ -53,7 +61,12 @@ run gui
 | Plik w examples/ | Funkcja |
 |---|---|
 | clicker_03.kit | Kliknięcia, zapis, odczyt i zapętlona muzyka |
-| clicker.kit, main_menu.kit | Zgodność wersji 0.2 |
+| clicker.kit | Nowa składnia 0.4 i reaktywny licznik |
+| movement.kit, gravity.kit, collisions.kit | Ruch, skok, platformy i kontakty |
+| animations.kit, camera.kit | Animacje i kamera |
+| infinite_world.kit, npc_spawn.kit | Segmenty i szablony NPC |
+| gui_styles.kit | Kolory, rounded, align, mysz |
+| main_menu.kit | Starsza składnia 0.2 |
 | music.kit | Play/pause/resume/stop |
 | images.kit | Obrazek bez ręcznego rozmiaru |
 | math.kit | Działania i funkcje math |
@@ -66,7 +79,7 @@ Zasoby w `examples/assets` są wygenerowanymi na potrzeby projektu materiałami 
 
 ## Dokumentacja i testy
 
-[Składnia](docs/syntax.md), [nowe funkcje 0.3](docs/version-0.3.md), [historia](CHANGELOG.md), [raport wykonanych testów](docs/verification.md).
+[Składnia](docs/syntax.md), [nowe funkcje 0.4](docs/version-0.4.md), [funkcje 0.3](docs/version-0.3.md), [historia](CHANGELOG.md), [raport wykonanych testów](docs/verification.md).
 
 ```powershell
 python -m pytest -q -m "not gui"

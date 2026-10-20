@@ -1,0 +1,15 @@
+[create gui.menu/$Grawitacja i skok$="game"]
+game.size=(480,320)
+[create item.sprite/assets/player.png="player"]
+player.position=(100,100)
+player.setting.move=arrows/80
+player.gravity=120
+player.collision=true
+[create item.sprite/assets/platform.png="ground"]
+ground.size=(320,40)
+ground.position=(50,260)
+ground.collision=true
+create item.label/$Strzałki: ruch. SPACE: skok z podłoża.$
+when key.SPACE.pressed:
+    player.action.jump(100)
+run game
