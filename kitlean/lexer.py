@@ -96,6 +96,12 @@ class Lexer:
                     i = match.end()
                     continue
             if ch == "#":
+                prefix = self.source[self.source.rfind("\n", 0, i) + 1 : i]
+                color = re.match(r"#[0-9A-Fa-f]{6}(?![0-9A-Za-z])", self.source[i:])
+                if color and re.search(r"\.(?:background|color)\s*[=/]\s*$", prefix):
+                    output.append(repr(color[0]))
+                    i += len(color[0])
+                    continue
                 end = self.source.find("\n", i)
                 end = len(self.source) if end < 0 else end
                 output.append(self.source[i:end])

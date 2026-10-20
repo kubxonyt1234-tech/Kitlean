@@ -11,7 +11,7 @@ from .lexer import Lexer
 IDENT = r"[^\W\d]\w*"
 KINDS = {
     "gui": {"menu"},
-    "item": {"button", "label", "input", "checkbox", "image"},
+    "item": {"button", "label", "input", "checkbox", "image", "sprite"},
     "audio": {"music"},
 }
 TEXT_PROPERTIES = {"text", "title", "background", "color", "parent", "file"}
@@ -82,7 +82,7 @@ class Parser:
             line = t.line
             values = [x.value for x in row]
             head = values[0]
-            if head in ("if", "repeat", "function", "else"):
+            if head in ("if", "when", "repeat", "function", "else"):
                 if values[-1] != ":":
                     raise KitleanError("Oczekiwano ':'", line)
                 if head == "else":
@@ -110,7 +110,10 @@ class Parser:
                         raise KitleanError("Niepoprawne parametry", line)
                     node = Statement("function", line, (match[1], params))
                 else:
-                    if head == "if" and values[1:3] == ["key", "/"]:
+                    if head in ("if", "when") and values[1:3] in (
+                        ["key", "/"],
+                        ["key", "."],
+                    ):
                         if len(row) == 7 and values[4:6] == [".", "pressed"]:
                             key_name = values[3]
                         elif (
@@ -125,6 +128,8 @@ class Parser:
                         else:
                             raise KitleanError("Użyj if key/SPACE.pressed:", line)
                         node = Statement("key_event", line, (key_name,))
+                    elif head == "repeat" and values[1:-1] == ["forever"]:
+                        node = Statement("forever", line)
                     else:
                         node = Statement(
                             head, line, (self.expression(row[1:-1], line),)
@@ -139,12 +144,86 @@ class Parser:
                     node.body = body
                     nodes.append(node)
                 continue
-            nodes.append(self.simple(row, line))
+            node = self.simple(row, line)
+            if node.kind == "thene" and (
+                not nodes
+                or nodes[-1].kind in ("if", "when", "key_event", "function", "forever")
+            ):
+                raise KitleanError(
+                    "thene requires a previous executable instruction", line
+                )
+            nodes.append(node)
         return nodes
 
     def simple(self, row, line):
         v = [t.value for t in row]
         head = v[0]
+        if head == "thene":
+            if len(row) < 2:
+                raise KitleanError("Missing instruction after thene", line)
+            return Statement("thene", line, (self.simple(row[1:], line),))
+        if head == "del":
+            if len(v) == 6 and v[2:] == [".", "last", "=", "copy"]:
+                return Statement("release_segment", line, (v[1],))
+            if len(row) != 2 or row[1].kind != "NAME":
+                raise KitleanError("Use del alias or del game.last=copy", line)
+            return Statement("delete", line, (v[1],))
+        if head == "summon" or head == "[" and len(v) > 1 and v[1] == "summon":
+            return self.summon(row, line)
+        if head == "create" and len(v) >= 4 and v[2] == ".":
+            if len(v) == 6 and v[3:] == ["gui", ".", "next"]:
+                return Statement("next_segment", line, (v[1],))
+            if len(v) == 4 and v[3] == "copy":
+                return Statement("copy", line, (v[1],))
+        # Property chains and object actions are parsed before command keywords.
+        if len(v) >= 3 and row[0].kind == "NAME" and v[1] == ".":
+            cursor = 1
+            names = []
+            while (
+                cursor + 1 < len(v)
+                and v[cursor] == "."
+                and row[cursor + 1].kind == "NAME"
+            ):
+                names.append(v[cursor + 1])
+                cursor += 2
+            if names and names[0] == "action":
+                if len(names) != 2:
+                    raise KitleanError("Use alias.action.name", line)
+                if cursor == len(v):
+                    return Statement("action", line, (v[0], names[1], []))
+                expression = self.expression(row, line).tree
+                if not isinstance(expression, ast.Call):
+                    raise KitleanError("Invalid action arguments", line)
+                return Statement("action", line, (v[0], names[1], expression.args))
+            if cursor < len(v) and v[cursor] in ("=", "/"):
+                prop = ".".join(names)
+                tail = row[cursor + 1 :]
+                if prop == "setting.move":
+                    if (
+                        len(tail) < 3
+                        or tail[0].value not in ("wsad", "arrows")
+                        or tail[1].value != "/"
+                    ):
+                        raise KitleanError(
+                            "Use setting.move=wsad/speed or arrows/speed", line
+                        )
+                    return Statement(
+                        "movement",
+                        line,
+                        (v[0], tail[0].value, self.expression(tail[2:], line)),
+                    )
+                if (
+                    prop in ("align", "save", "camera.follow")
+                    or prop == "position"
+                    and len(tail) == 1
+                    and tail[0].value == "random"
+                ):
+                    value = self.value(tail, line, text=True)
+                else:
+                    value = self.value(
+                        tail, line, text=v[cursor] == "/" and prop in TEXT_PROPERTIES
+                    )
+                return Statement("property", line, (v[0], prop, value))
         if head == "[" or head == "create":
             bracket = head == "["
             tokens = row[1:-1] if bracket else row
@@ -175,6 +254,50 @@ class Parser:
                 )
             kind = vals[1] + "." + vals[3]
             tail = tokens[4:]
+            if bracket and tail and tail[0].value == "/":
+                expanded = []
+                for token_item in tail:
+                    if token_item.value == "!=":
+                        expanded.extend(
+                            (
+                                type(token_item)(
+                                    "OP", "!", token_item.line, token_item.column
+                                ),
+                                type(token_item)(
+                                    "OP", "=", token_item.line, token_item.column + 1
+                                ),
+                            )
+                        )
+                    else:
+                        expanded.append(token_item)
+                tail = expanded
+            if len(tail) > 1 and tail[0].value == "/":
+                equals = next(
+                    (i for i, t in enumerate(tail[1:], 1) if t.value == "="), None
+                )
+                if bracket:
+                    if equals is None:
+                        raise KitleanError('Aliased creation requires ="alias"', line)
+                    return Statement(
+                        "create_named",
+                        line,
+                        (
+                            kind,
+                            self.expression(tail[equals + 1 :], line),
+                            self.value(tail[1:equals], line, text=True),
+                        ),
+                    )
+                if (
+                    kind == "gui.menu"
+                    or vals[2] == "."
+                    and tail[1].kind != "STRING"
+                    or kind == "item.sprite"
+                ):
+                    return Statement(
+                        "create_named",
+                        line,
+                        (kind, None, self.value(tail[1:], line, text=True)),
+                    )
             if bracket:
                 if len(tail) < 2 or tail[0].value != "=":
                     raise KitleanError('Oczekiwano ="alias"', line)
@@ -239,3 +362,35 @@ class Parser:
                 (v[0], v[2], self.value(row[4:], line, text=v[2] in TEXT_PROPERTIES)),
             )
         return Statement("expression", line, (self.expression(row, line),))
+
+    def summon(self, row, line):
+        bracket = row[0].value == "["
+        tokens = row[1:-1] if bracket else row
+        v = [t.value for t in tokens]
+        if bracket and row[-1].value != "]":
+            raise KitleanError("Missing ]", line)
+        random_mode = v[1:4] == ["random", ".", "npc"]
+        offset = 4 if random_mode else 2
+        if (
+            not random_mode
+            and v[1:2] != ["npc"]
+            or len(v) <= offset + 1
+            or v[offset] != "/"
+            or tokens[offset + 1].kind != "NAME"
+        ):
+            raise KitleanError(
+                "Use summon npc/template=(x,y) or summon random.npc/template", line
+            )
+        template = v[offset + 1]
+        tail = tokens[offset + 2 :]
+        target = alias = None
+        if tail:
+            if tail[0].value != "=" or len(tail) < 2:
+                raise KitleanError("Invalid summon parameters", line)
+            if bracket:
+                alias = self.expression(tail[1:], line)
+            elif len(tail) == 2 and tail[1].kind == "NAME":
+                target = Expression(ast.Constant(tail[1].value), line)
+            else:
+                target = self.expression(tail[1:], line)
+        return Statement("summon", line, (template, random_mode, target, alias))

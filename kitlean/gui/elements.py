@@ -7,6 +7,7 @@ DEFAULTS = {
     "item.label": None,
     "item.checkbox": None,
     "item.image": None,
+    "item.sprite": None,
     "audio.music": None,
     "timer": None,
 }
@@ -27,6 +28,21 @@ class Element:
             volume=50,
             loop=False,
             interval=1,
+            speed=5,
+            gravity=0,
+            collision=False,
+            rotation=0,
+            fullscreen=False,
+            align="left",
+            margin=20,
+            rounded=0,
+            **{
+                "setting.move": None,
+                "animation.speed": 1,
+                "animation.loop": False,
+                "camera.follow": None,
+                "camera.zoom": 1,
+            },
             text="",
             title="Kitlean",
             background="#FFFFFF" if self.kind == "gui.menu" else "#F0F0F0",
@@ -37,3 +53,6 @@ class Element:
             position=None,
             value=False if self.kind == "item.checkbox" else "",
         )
+
+        if self.kind == "item.sprite":
+            self.properties["position"] = (20.0, 20.0)

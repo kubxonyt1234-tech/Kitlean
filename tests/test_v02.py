@@ -163,7 +163,7 @@ def test_cli_exact_version():
     )
     assert result.returncode == 0
     assert result.stdout.decode().splitlines() == [
-        "Kitlean 0.3 Beta",
+        "Kitlean 0.4 Beta",
         "Python-powered programming language",
     ]
 

@@ -11,12 +11,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="kitlean",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="Kitlean 0.3 Beta — interpreter języka i GUI tkinter",
+        description="Kitlean 0.4 Beta — interpreter języka i GUI tkinter",
     )
     parser.add_argument(
         "--version",
         action="version",
-        version="Kitlean 0.3 Beta\nPython-powered programming language",
+        version="Kitlean 0.4 Beta\nPython-powered programming language",
     )
     sub = parser.add_subparsers(dest="command")
     for cmd in ("run", "check"):

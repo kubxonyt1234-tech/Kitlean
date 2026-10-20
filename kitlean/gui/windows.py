@@ -1,6 +1,8 @@
+import math
 import tkinter as tk
 
 from ..errors import KitleanError
+from .button import RoundedButton
 from .layout import arrange
 
 
@@ -11,6 +13,8 @@ class Windows:
         self.active = None
         self.running = False
         self.error = None
+        self.canvases = {}
+        self.canvas_items = {}
 
     def ensure(self):
         if self.root is None:
@@ -20,6 +24,15 @@ class Windows:
                 self.root.report_callback_exception = self.callback_error
                 self.root.protocol("WM_DELETE_WINDOW", self.close)
                 self.runtime.keyboard.attach(self.root)
+                self.root.bind("<Motion>", self.mouse_motion, add="+")
+                self.root.bind(
+                    "<Button-1>", lambda event: self.mouse_click(event, "left"), add="+"
+                )
+                self.root.bind(
+                    "<Button-3>",
+                    lambda event: self.mouse_click(event, "right"),
+                    add="+",
+                )
             except tk.TclError as e:
                 raise KitleanError("Nie można uruchomić tkinter: " + str(e)) from None
 
@@ -35,8 +48,11 @@ class Windows:
         for element in rt.objects.values():
             if element.kind == "gui.menu" and element.widget is None:
                 element.widget = tk.Frame(self.root)
+                element.widget.bind(
+                    "<Configure>", lambda event, e=element: self.resize_menu(e)
+                )
         for element in rt.objects.values():
-            if not element.kind.startswith("item."):
+            if not element.kind.startswith("item.") or element.kind == "item.sprite":
                 continue
             parent = rt.get(element.parent)
             if element.widget is not None and str(element.widget.master) == str(
@@ -49,7 +65,7 @@ class Windows:
                 element.widget.destroy()
             master = parent.widget
             if element.kind == "item.button":
-                element.widget = tk.Button(
+                element.widget = RoundedButton(
                     master, command=lambda e=element: rt.events.emit(e, "clicked")
                 )
             elif element.kind in ("item.label", "item.image"):
@@ -94,7 +110,7 @@ class Windows:
         children = [
             e
             for e in self.runtime.objects.values()
-            if e.parent == name and e.widget is not None
+            if e.parent == name and e.widget is not None and e.kind != "item.sprite"
         ]
         positions = arrange(children)
         for e in children:
@@ -128,6 +144,8 @@ class Windows:
                         )
                     if e.kind != "item.input":
                         e.widget.configure(text=p["text"])
+                    if e.kind == "item.button":
+                        e.widget.configure(rounded=p["rounded"])
             except tk.TclError as exc:
                 raise KitleanError(
                     "Niepoprawna właściwość GUI: " + str(exc), self.runtime.line
@@ -137,7 +155,11 @@ class Windows:
             if menu.kind != "gui.menu":
                 continue
             children = [
-                e for e in self.runtime.objects.values() if e.parent == menu.name
+                e
+                for e in self.runtime.objects.values()
+                if e.parent == menu.name
+                and e.kind != "item.sprite"
+                and e.widget is not None
             ]
             positions = arrange(children)
             for e in children:
@@ -154,6 +176,8 @@ class Windows:
             p = self.runtime.get(self.active).properties
             self.root.title(p["title"])
             self.root.geometry(f"{p['size'][0]}x{p['size'][1]}")
+            self.root.attributes("-fullscreen", p["fullscreen"])
+        self.render_world()
 
     def open(self, name):
         menu = self.runtime.get(name)
@@ -164,9 +188,10 @@ class Windows:
             if e.kind == "gui.menu":
                 e.widget.pack_forget()
         menu.widget.pack(fill="both", expand=True)
-        self.active = name
+        self.active = menu.name
         self.refresh()
         self.root.deiconify()
+        self.runtime.world.start()
 
     def hide(self, name):
         menu = self.runtime.get(name)
@@ -189,13 +214,19 @@ class Windows:
             min(240, max(1, height - 40)),
         )
         path = self.runtime.asset_path(value)
-        signature = (str(path), box)
+        signature = (str(path), box, element.properties["rotation"])
         if getattr(element, "image_key", None) == signature:
             return
         try:
             with Image.open(path) as source:
                 picture = ImageOps.exif_transpose(source).convert("RGBA")
                 picture.thumbnail(box, Image.Resampling.LANCZOS)
+                if element.properties["rotation"]:
+                    picture = picture.rotate(
+                        -element.properties["rotation"],
+                        expand=True,
+                        resample=Image.Resampling.BICUBIC,
+                    )
                 element.image = ImageTk.PhotoImage(picture, master=self.root)
             element.widget.configure(image=element.image)
             element.image_key = signature
@@ -232,3 +263,114 @@ class Windows:
                 e.widget = None
                 e.image_key = None
         self.active = None
+        self.canvases.clear()
+        self.canvas_items.clear()
+
+    def resize_menu(self, menu):
+        if self.root is None:
+            return
+        self.layout_menu(menu.name)
+        self.render_world()
+
+    def mouse_motion(self, event):
+        self.runtime.world.mouse = (
+            event.x_root - self.root.winfo_rootx(),
+            event.y_root - self.root.winfo_rooty(),
+        )
+
+    def mouse_click(self, event, button):
+        self.mouse_motion(event)
+        self.runtime.world.emit("mouse", button + ".clicked")
+
+    def render_world(self):
+        if self.root is None:
+            return
+        from PIL import Image, ImageTk
+
+        rt = self.runtime
+        world = rt.world
+        for menu in tuple(rt.objects.values()):
+            if menu.kind != "gui.menu" or menu.widget is None:
+                continue
+            sprites = world.sprites(menu.name)
+            if not sprites and menu.name not in self.canvases:
+                continue
+            if menu.name not in self.canvases:
+                canvas = tk.Canvas(menu.widget, highlightthickness=0)
+                canvas.place(x=0, y=0, relwidth=1, relheight=1)
+                self.canvases[menu.name] = canvas
+                self.canvas_items[menu.name] = {}
+                for item in rt.objects.values():
+                    if item.parent == menu.name and item.widget is not None:
+                        tk.Misc.tkraise(item.widget)
+            canvas = self.canvases[menu.name]
+            items = self.canvas_items[menu.name]
+            canvas.configure(background=menu.properties["background"])
+            visible = {
+                e.name
+                for e in sprites
+                if e.properties["visible"] and e.properties["file"]
+            }
+            for name in set(items) - visible:
+                canvas.delete(items.pop(name))
+            for e in sprites:
+                if e.name not in visible:
+                    continue
+                width, height = world.dimensions(e)
+                x, y = world.screen_position(e.name)
+                zoom = menu.properties["camera.zoom"]
+                phase = getattr(e, "visual_phase", 0)
+                animation = getattr(e, "visual_animation", None)
+                angle = e.properties["rotation"] + (
+                    360 * phase if animation == "rotate" else 0
+                )
+                offset = -12 * math.sin(phase * math.pi) if animation == "bounce" else 0
+                alpha = max(0, 1 - phase) if animation == "fade" else 1
+                signature = (
+                    e.properties["file"],
+                    round(width * zoom),
+                    round(height * zoom),
+                    round(angle, 2),
+                    round(alpha, 3),
+                )
+                if getattr(e, "world_image_key", None) != signature:
+                    picture = world.source(e.properties["file"]).resize(
+                        (max(1, round(width * zoom)), max(1, round(height * zoom))),
+                        Image.Resampling.LANCZOS,
+                    )
+                    if angle:
+                        picture = picture.rotate(
+                            -angle, expand=True, resample=Image.Resampling.BICUBIC
+                        )
+                    if alpha != 1:
+                        picture.putalpha(
+                            picture.getchannel("A").point(
+                                lambda value, opacity=alpha: int(value * opacity)
+                            )
+                        )
+                    e.world_photo = ImageTk.PhotoImage(picture, master=self.root)
+                    e.world_image_key = signature
+                if e.name not in items:
+                    items[e.name] = canvas.create_image(
+                        0, 0, anchor="center", tags=(e.name,)
+                    )
+                    canvas.tag_bind(
+                        e.name,
+                        "<Button-1>",
+                        lambda event, name=e.name: rt.events.emit(
+                            rt.get(name), "clicked"
+                        ),
+                    )
+                    canvas.tag_bind(
+                        e.name,
+                        "<Enter>",
+                        lambda event, name=e.name: rt.events.emit(
+                            rt.get(name), "hovered"
+                        ),
+                    )
+                canvas.itemconfigure(items[e.name], image=e.world_photo)
+                canvas.coords(
+                    items[e.name],
+                    x + width * zoom / 2,
+                    y + (height / 2 + offset) * zoom,
+                )
