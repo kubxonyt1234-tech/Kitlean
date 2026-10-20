@@ -197,3 +197,24 @@ def test_live_animation_completion(game):
     r.windows.root.after(300, r.windows.close)
     i.execute("run game")
     assert i.env.get("finished") == 1
+
+
+def test_held_wsad_moves_player_in_live_loop(game):
+    i = game
+    r = i.runtime
+    i.execute("player.setting.move=wsad/120")
+    seen = []
+
+    def press():
+        r.windows.root.focus_force()
+        r.windows.root.event_generate("<KeyPress-d>")
+
+    def inspect():
+        seen.append(r.get("player").properties["position"][0])
+        r.windows.root.event_generate("<KeyRelease-d>")
+        r.windows.close()
+
+    r.windows.root.after(80, press)
+    r.windows.root.after(350, inspect)
+    i.execute("run game")
+    assert seen[0] > 115

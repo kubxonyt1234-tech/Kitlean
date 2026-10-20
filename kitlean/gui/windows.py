@@ -191,6 +191,7 @@ class Windows:
         self.active = menu.name
         self.refresh()
         self.root.deiconify()
+        self.root.after_idle(self.root.focus_set)
         self.runtime.world.start()
 
     def hide(self, name):
